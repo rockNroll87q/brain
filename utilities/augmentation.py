@@ -356,10 +356,6 @@ class FastBiasNoiseAugment(ImageOnlyTransform):
         mask = img != img.min()
         img_out = img.copy()
         img_out[mask] += noise[mask].astype(img.dtype)
-#         noise[img == img.min()] = 0
-
-#         # Compose the output: add noise to the original vol
-#         img_out = img + noise.astype(img.dtype)
 
         return img_out
 
