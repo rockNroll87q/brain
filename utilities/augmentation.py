@@ -36,7 +36,7 @@ def addWeighted(src1, alpha, src2, beta, gamma):
     return src1 * alpha + src2 * beta + gamma
 
 
-def augmentation_salt_and_pepper_noise(X_data, amount=10. / 1000):
+def augmentation_salt_and_pepper_noise(X_data, generator:np.random.Generator, amount=10. / 1000):
     """ 
     Function to add S&P noise to the volume.
 
@@ -51,22 +51,26 @@ def augmentation_salt_and_pepper_noise(X_data, amount=10. / 1000):
     n_pepper_voxels = int(np.ceil(amount * np.prod(X_data_out.size) * (1.0 - salt_vs_pepper)))
 
     # Add Salt noise
-    coords = [np.random.randint(0, i - 1, int(n_salt_voxels)) for i in np.squeeze(X_data_out).shape]
+    coords = [generator.integers(0, i - 1, int(n_salt_voxels)) for i in np.squeeze(X_data_out).shape]
     X_data_out[coords[0], coords[1], coords[2]] = np.max(X_data)
 
     # Add Pepper noise
-    coords = [np.random.randint(0, i - 1, int(n_pepper_voxels)) for i in np.squeeze(X_data_out).shape]
+    coords = [generator.integers(0, i - 1, int(n_pepper_voxels)) for i in np.squeeze(X_data_out).shape]
     X_data_out[coords[0], coords[1], coords[2]] = np.min(X_data)
 
     return X_data_out
 
 
 class SaltAndPepperNoiseAugment(ImageOnlyTransform):
+    def __init__(self, seed=None, p=1.0):
+        super(SaltAndPepperNoiseAugment, self).__init__(always_apply=False, p=p)
+        self.rng = np.random.default_rng(seed)
+
     def apply(self, img, **params):
-        return augmentation_salt_and_pepper_noise(img)
+        return augmentation_salt_and_pepper_noise(img, self.rng)
 
 
-def augmentation_gaussian_noise(X_data):
+def augmentation_gaussian_noise(X_data, generator:np.random.Generator):
     """ 
     Function to add gaussian noise to the volume.
 
@@ -80,7 +84,7 @@ def augmentation_gaussian_noise(X_data):
     var = np.var(X_data_no_background)
     sigma = var ** 0.5
 
-    gaussian = np.random.normal(mean, sigma, X_data.shape).astype(X_data.dtype)
+    gaussian = generator.normal(mean, sigma, X_data.shape).astype(X_data.dtype)
 
     # Compose the output (src1, alpha, src2, beta, gamma)
     X_data_out = addWeighted(X_data, 0.8, gaussian, 0.2, 0)
@@ -89,11 +93,15 @@ def augmentation_gaussian_noise(X_data):
 
 
 class GaussianNoiseAugment(ImageOnlyTransform):
+    def __init__(self, seed=None, p=1.0):
+        super(GaussianNoiseAugment, self).__init__(always_apply=False, p=p)
+        self.rng = np.random.default_rng(seed)
+
     def apply(self, img, **params):
-        return augmentation_gaussian_noise(img)
+        return augmentation_gaussian_noise(img, self.rng)
 
 
-def augmentation_inhomogeneity_noise(X_data, inhom_vol):
+def augmentation_inhomogeneity_noise(X_data, inhom_vol, generator):
     """ 
     Function to add inhomogeneity noise to the volume.
 
@@ -103,9 +111,9 @@ def augmentation_inhomogeneity_noise(X_data, inhom_vol):
     """
 
     # Randomly select a vol of the same shape of 'X_data'
-    x_1 = np.random.randint(0, int(X_data.shape[0]) - 1, size=1)[0]
-    x_2 = np.random.randint(0, int(X_data.shape[1]) - 1, size=1)[0]
-    x_3 = np.random.randint(0, int(X_data.shape[2]) - 1, size=1)[0]
+    x_1 = generator.integers(0, int(X_data.shape[0]) - 1, size=1)[0]
+    x_2 = generator.integers(0, int(X_data.shape[1]) - 1, size=1)[0]
+    x_3 = generator.integers(0, int(X_data.shape[2]) - 1, size=1)[0]
     y_1 = inhom_vol[x_1: x_1 + X_data.shape[0],
           x_2: x_2 + X_data.shape[1],
           x_3: x_3 + X_data.shape[2]]
@@ -118,12 +126,13 @@ def augmentation_inhomogeneity_noise(X_data, inhom_vol):
 
 class InhomogeneityNoiseAugment(ImageOnlyTransform):
 
-    def __init__(self, inhom_vol: np.array, always_apply=False, p=1.0):
+    def __init__(self, inhom_vol: np.array, seed=None, always_apply=False, p=1.0):
         super(InhomogeneityNoiseAugment, self).__init__(always_apply, p)
         self.inhom_vol = inhom_vol
+        self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
-        return augmentation_inhomogeneity_noise(img, self.inhom_vol)
+        return augmentation_inhomogeneity_noise(img, self.inhom_vol, self.rng)
 
 
 
@@ -449,11 +458,10 @@ class GhostingAugment(ImageOnlyTransform):
         self.max_repetitions = max_repetitions
         self.rng = np.random.default_rng(seed)
 
-
     def apply(self, img, **params):
         # Randomly select parameters
-        repetitions = np.random.RandomState().choice(range(1, self.max_repetitions + 1))
-        axis = np.random.RandomState().choice(range(len(img.shape)))
+        repetitions = self.rng.choice(range(1, self.max_repetitions + 1))
+        axis = self.rng.choice(range(len(img.shape)))
 
         img_out = img
         shift_value = 0
@@ -529,7 +537,7 @@ def get_augmentation_by_name(inho_vol, config: Config, name):
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=0, p=1.),
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=4, p=1.),
                 ], p=config.augment.prob_down),
-        "gamm": GammaNoiseAugment(p=config.augment.prob_gamm),
+        "gamm": GammaNoiseAugment(by_slice=True, p=config.augment.prob_gamm),
         "cont": ContrastNoiseAugment(p=config.augment.prob_cont),
         "slic": SliceSpacingNoiseAugment(p=config.augment.prob_slic),
         "bias": BiasNoiseAugment(p=config.augment.prob_bias),
@@ -614,7 +622,7 @@ def get_intensity_transforms(inho_vol, config):
                                     interpolation = 4,      # (cv2.INTER_LANCZOS4)
                                     p = 1.),
                 ], p=config.augment.prob_down),
-                GammaNoiseAugment(p = config.augment.prob_gamm),
+                GammaNoiseAugment(by_slice=True, p = config.augment.prob_gamm),
                 ContrastNoiseAugment(p = config.augment.prob_cont),
                 SliceSpacingNoiseAugment(p = config.augment.prob_slic),
                 BiasNoiseAugment(p = config.augment.prob_bias),   
