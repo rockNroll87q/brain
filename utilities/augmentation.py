@@ -284,6 +284,84 @@ class BiasNoiseAugment(ImageOnlyTransform):
     def apply(self, img, **params):
         return augmentation_bias_noise(img, self.rng)
 
+class FastBiasNoiseAugment(ImageOnlyTransform):
+    def __init__(self, max_cycles=5, factor=2.0, shape=(256, 256, 256), seed=None, p=1.0):
+        super(FastBiasNoiseAugment, self).__init__(always_apply=False, p=p)
+        """
+        Pre-compute noise volumes for bias noise augmentation.
+
+        :param max_cycles: Maximum number of cycles for sine wave generation.
+        :param factor: Scaling factor for the wave.
+        :param shape: Shape of the volume for which noise is precomputed.
+        :param seed: Random seed for reproducibility.
+        """
+        self.rng = np.random.default_rng(seed)
+        self.noise_volumes = self._precompute_noise_volumes(max_cycles, factor, shape)
+        self.translate = FastTranslationAugment(max_shift=[80, 80, 80], padding_mode='wrap', p=0.5)
+
+    def _precompute_noise_volumes(self, max_cycles, factor, shape):
+        """
+        Precompute all possible noise volumes based on sine waves.
+
+        :param max_cycles: Maximum number of cycles for sine wave generation.
+        :param factor: Scaling factor for the wave.
+        :param shape: Shape of the volume for which noise is precomputed.
+        :return: Precomputed noise volumes.
+        """
+        logger.debug(f'Precomputing {max_cycles} bias volumes for FastBiasNoiseAugment')
+        noise_volumes = []
+        for n_cycles in range(1, max_cycles + 1):
+            x = np.linspace(-np.pi * n_cycles/factor, np.pi * n_cycles/factor, shape[0])
+            y = np.linspace(-np.pi * n_cycles/factor, np.pi * n_cycles/factor, shape[1])
+            z = np.linspace(-np.pi * n_cycles/factor, np.pi * n_cycles/factor, shape[2])
+#             xx, yy, zz = np.meshgrid(x, y, z, indexing='ij')
+#             noise = np.sin(xx + yy + zz) + np.sin(xx - yy - zz)
+            xx, yy, zz = np.meshgrid(x, y, z)
+            noise = np.sin(np.transpose(xx, axes=(0,2,1)) + yy + zz) + \
+                    np.sin(xx + np.transpose(yy, axes=(0,2,1)) + zz) + \
+                    np.sin(xx + yy + np.transpose(zz, axes=(0,2,1)))
+            noise_volumes.append(noise)
+        return np.stack(noise_volumes)
+
+    def apply(self, img, **params):
+        """
+        Apply a randomly selected pre-computed bias noise volume to the input image.
+
+        :param img: Input volume (3D) with shape matching the precomputed noise.
+        :return: Augmented volume.
+        """
+
+        # Randomly select one of the precomputed noise patterns
+        idx = self.rng.integers(0, len(self.noise_volumes))
+        noise = self.noise_volumes[idx]
+
+        noise = self.translate.apply(noise, **self.translate.get_params())
+        
+        if self.rng.random() < 0.5:
+            noise = np.flip(noise, axis=self.rng.choice([0, 1, 2]))
+        if self.rng.random() < 0.5:
+            noise = np.flip(noise, axis=self.rng.choice([0, 1, 2]))
+
+        # Adjust the amplitude of the noise (1/10 of the volume)
+        noise = stats.zscore(noise, axis=None)
+        noise = noise / 2
+
+        # Add Gaussian noise to avoid easy filter detection
+        mean = np.mean(noise)
+        sigma = np.std(noise)
+        gaussian = self.rng.normal(mean, sigma, noise.shape)
+        noise = addWeighted(noise, 0.9, gaussian, 0.1, 0)
+
+        # Apply it only on non-zero, or near to zero, of 'img' (i.e., min after z-scoring)
+        mask = img != img.min()
+        img_out = img.copy()
+        img_out[mask] += noise[mask].astype(img.dtype)
+#         noise[img == img.min()] = 0
+
+#         # Compose the output: add noise to the original vol
+#         img_out = img + noise.astype(img.dtype)
+
+        return img_out
 
 def translate_volume(image,
                      shift_x0: int, shift_x1: int, shift_x2: int,
