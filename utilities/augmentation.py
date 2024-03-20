@@ -614,7 +614,7 @@ def get_augmentation_by_name(inho_vol, config: Config, name):
         "gamm": GammaNoiseAugment(by_slice=True, p=config.augment.prob_gamm),
         "cont": ContrastNoiseAugment(p=config.augment.prob_cont),
         "slic": SliceSpacingNoiseAugment(p=config.augment.prob_slic),
-        "bias": BiasNoiseAugment(p=config.augment.prob_bias),
+        "bias": FastBiasNoiseAugment(p=config.augment.prob_bias),
         "moti": RandomMotionAugment(p=config.augment.prob_moti),
         "ghos": RandomGhostingAugment(p = config.augment.prob_ghos)
     }
@@ -699,7 +699,7 @@ def get_intensity_transforms(inho_vol, config):
                 GammaNoiseAugment(by_slice=True, p = config.augment.prob_gamm),
                 ContrastNoiseAugment(p = config.augment.prob_cont),
                 SliceSpacingNoiseAugment(p = config.augment.prob_slic),
-                BiasNoiseAugment(p = config.augment.prob_bias),   
+                FastBiasNoiseAugment(p = config.augment.prob_bias),   
                 InhomogeneityNoiseAugment(inho_vol, p = config.augment.prob_inho),  # Inhomogeneity noise 
                 RandomMotionAugment(p=config.augment.prob_moti),
                 RandomGhostingAugment(p = config.augment.prob_ghos)
