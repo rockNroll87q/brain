@@ -620,7 +620,7 @@ def get_augmentation_by_name(inho_vol, config: Config, name):
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=0, p=1.),
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=4, p=1.),
                 ], p=config.augment.prob_down),
-        "gamm": GammaNoiseAugment(by_slice=True, p=config.augment.prob_gamm),
+        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=config.augment.prob_gamm),
         "cont": ContrastNoiseAugment(p=config.augment.prob_cont),
         "slic": SliceSpacingNoiseAugment(p=config.augment.prob_slic),
         "bias": FastBiasNoiseAugment(p=config.augment.prob_bias),
@@ -705,7 +705,7 @@ def get_intensity_transforms(inho_vol, config):
                                     interpolation = 4,      # (cv2.INTER_LANCZOS4)
                                     p = 1.),
                 ], p=config.augment.prob_down),
-                GammaNoiseAugment(by_slice=True, p = config.augment.prob_gamm),
+                GammaNoiseAugment(p_by_slice=0.5, p = config.augment.prob_gamm),
                 ContrastNoiseAugment(p = config.augment.prob_cont),
                 SliceSpacingNoiseAugment(p = config.augment.prob_slic),
                 FastBiasNoiseAugment(p = config.augment.prob_bias),   
