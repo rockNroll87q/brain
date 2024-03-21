@@ -357,6 +357,10 @@ class FastBiasNoiseAugment(ImageOnlyTransform):
         gaussian = self.rng.normal(mean, sigma, noise.shape)
         noise = addWeighted(noise, 0.9, gaussian, 0.1, 0)
 
+        # It may be that the noise volume is larger than the input image, so we need to crop it back to match the size of the input
+        if noise.shape != img.shape:
+            noise = noise[0:img.shape[0], 0:img.shape[1], 0:img.shape[2]]
+
         # Apply it only on non-zero, or near to zero, of 'img' (i.e., min after z-scoring)
         mask = img != img.min()
         img_out = img.copy()
