@@ -160,13 +160,18 @@ def fast_change_luminance_contrast(X_data, generator:np.random.Generator, clippi
     return X_data_out
 
 class GammaNoiseAugment(ImageOnlyTransform):
-    def __init__(self, seed=None, by_slice=False, p=1.0):
+    def __init__(self, seed=None, p_by_slice=0.5, p=1.0):
         super(GammaNoiseAugment, self).__init__(always_apply=False, p=p)
         self.rng = np.random.default_rng(seed)
-        self.by_slice = by_slice
+        self.p_by_slice = p_by_slice
     
     def apply(self, img, **params):
-        return fast_change_luminance_contrast(img, self.rng, by_slice=self.by_slice)
+        if self.rng.random() < self.p_by_slice:
+            by_slice = True
+        else:
+            by_slice = False
+
+        return fast_change_luminance_contrast(img, self.rng, by_slice=by_slice)
 
 def change_contrast(X_data: np.ndarray, generator:np.random.Generator, min_alpha: float=0.5, max_alpha: float=3.0):
     """ 
