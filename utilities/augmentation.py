@@ -15,7 +15,7 @@ from scipy.ndimage import affine_transform
 from scipy.ndimage import rotate
 import albumentations as albu
 from albumentations.core.transforms_interface import ImageOnlyTransform, DualTransform
-from brain_age.config import Config
+from brain.utilities.config import AugmentConfig
 from scipy import stats
 from loguru import logger
 from typing import Tuple, Union, Optional
@@ -608,93 +608,93 @@ class RandomGhostingAugment(ImageOnlyTransform):
 
         return np.squeeze(self.randGhost(np.expand_dims(img, axis=0)), axis=0)
 
-def get_augmentation_by_name(inho_vol, config: Config, name):
+def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name):
     augmentations = {
-        "inho": InhomogeneityNoiseAugment(inho_vol, p=config.augment.prob_inho),
-        "rota": RotationAugment(p=config.augment.prob_rota, max_angle=30, rot_spline_order=1),
-        "tran": FastTranslationAugment(padding_mode='wrap', p=config.augment.prob_tran),
-        "blur": albu.Blur(blur_limit=(3, 3), p=config.augment.prob_blur),
-        "salt": SaltAndPepperNoiseAugment(p=config.augment.prob_salt),
-        "gaus": GaussianNoiseAugment(p=config.augment.prob_gaus),
+        "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho),
+        "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1),
+        "tran": FastTranslationAugment(padding_mode='wrap', p=augment.prob_tran),
+        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur),
+        "salt": SaltAndPepperNoiseAugment(p=augment.prob_salt),
+        "gaus": GaussianNoiseAugment(p=augment.prob_gaus),
         "down": albu.OneOf([                                
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=0, p=1.),
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=4, p=1.),
-                ], p=config.augment.prob_down),
-        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=config.augment.prob_gamm),
-        "cont": ContrastNoiseAugment(p=config.augment.prob_cont),
-        "slic": SliceSpacingNoiseAugment(p=config.augment.prob_slic),
-        "bias": FastBiasNoiseAugment(p=config.augment.prob_bias),
-        "moti": RandomMotionAugment(p=config.augment.prob_moti),
-        "ghos": RandomGhostingAugment(p = config.augment.prob_ghos)
+                ], p=augment.prob_down),
+        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=augment.prob_gamm),
+        "cont": ContrastNoiseAugment(p=augment.prob_cont),
+        "slic": SliceSpacingNoiseAugment(p=augment.prob_slic),
+        "bias": FastBiasNoiseAugment(p=augment.prob_bias),
+        "moti": RandomMotionAugment(p=augment.prob_moti),
+        "ghos": RandomGhostingAugment(p = augment.prob_ghos)
     }
     return augmentations.get(name)
 
-def get_augm_transforms(inho_vol, config: Config, volume_size: int = 256):
+def get_augm_transforms(inho_vol, augment: AugmentConfig, volume_size: int = 256):
     """
     Get the transformations for volume augmentation.
 
     :param inho_vol: inhomogeneity volume
     :param volume_size: size of the volume
-    :param config: Config class (with all probabilities stored)
+    :param augment: AugmentConfig class (with all probabilities stored)
     :return: albumentation composition
     """
-    if config.augment.single_type is not None:
+    if augment.single_type is not None:
         return albu.Compose([
-            get_augmentation_by_name(inho_vol, config, config.augment.single_type)
-        ], p = config.augment.prob_overall)
+            get_augmentation_by_name(inho_vol, augment, augment.single_type)
+        ], p = augment.prob_overall)
     else:
         return albu.Compose([
             # Default transformations
             # albu.VerticalFlip(p = config.augment.prob_flip),  # sagittal plane
 
             # Geometric transformations
-            get_geometric_transforms(config),
+            get_geometric_transforms(augment),
             # Non-geometric transformations
-            get_intensity_transforms(inho_vol, config),
+            get_intensity_transforms(inho_vol, augment),
 
-        ], p = config.augment.prob_overall)
+        ], p = augment.prob_overall)
     
-def get_geometric_transforms(config):
+def get_geometric_transforms(augment: AugmentConfig):
     """
     Get the geometric/affine transformations for volume augmentation.
 
-    :param config: Config class (with all probabilities stored)
+    :param augment: AugmentConfig class (with all probabilities stored)
     :return: albumentation composition
     """
-    if config.augment.single_type is not None and config.augment.single_type in ["rota", "tran"]: # rota and tran are the only two geometric transforms, so we match those
+    if augment.single_type is not None and augment.single_type in ["rota", "tran"]: # rota and tran are the only two geometric transforms, so we match those
         return albu.Compose([
-            get_augmentation_by_name(None, config, config.augment.single_type)
-        ], p = config.augment.prob_overall)
-    elif not config.augment.single_type: # If not a single type, return a compose of all geometric transforms
+            get_augmentation_by_name(None, augment, augment.single_type)
+        ], p = augment.prob_overall)
+    elif not augment.single_type: # If not a single type, return a compose of all geometric transforms
         return albu.Compose([
             # Geometric transformations
             albu.OneOf([
-                RotationAugment(p = config.augment.prob_rota, max_angle=30, rot_spline_order=1),
-                FastTranslationAugment(padding_mode='wrap', p = config.augment.prob_tran),
-            ], p = config.augment.prob_geom),
-        ], p=config.augment.prob_overall)
+                RotationAugment(p = augment.prob_rota, max_angle=30, rot_spline_order=1),
+                FastTranslationAugment(padding_mode='wrap', p = augment.prob_tran),
+            ], p = augment.prob_geom),
+        ], p=augment.prob_overall)
     else: # Likely this will only happen is it's a single type that isn't in rota or tran
         return None
 
-def get_intensity_transforms(inho_vol, config):
+def get_intensity_transforms(inho_vol, augment:AugmentConfig):
     """
     Get the intensity transformations for volume augmentation.
 
     :param inho_vol: inhomogeneity volume
-    :param config: Config class (with all probabilities stored)
+    :param augment: AugmentConfig class (with all probabilities stored)
     :return: albumentation composition
     """
 
-    if config.augment.single_type is not None and config.augment.single_type not in ["rota", "tran"]: # Opposite to geometric, we want all single transforms which aren't these two
+    if augment.single_type is not None and augment.single_type not in ["rota", "tran"]: # Opposite to geometric, we want all single transforms which aren't these two
         return albu.Compose([
-            get_augmentation_by_name(inho_vol, config, config.augment.single_type)
-        ], p = config.augment.prob_overall)
-    elif not config.augment.single_type: # If not a single type, return a compose of all intensity transforms
+            get_augmentation_by_name(inho_vol, augment, augment.single_type)
+        ], p = augment.prob_overall)
+    elif not augment.single_type: # If not a single type, return a compose of all intensity transforms
         return albu.Compose([
             albu.OneOf([
-                albu.Blur(blur_limit = (3, 3), p = config.augment.prob_blur),
-                SaltAndPepperNoiseAugment(p = config.augment.prob_salt),
-                GaussianNoiseAugment(p = config.augment.prob_gaus),
+                albu.Blur(blur_limit = (3, 3), p = augment.prob_blur),
+                SaltAndPepperNoiseAugment(p = augment.prob_salt),
+                GaussianNoiseAugment(p = augment.prob_gaus),
                 albu.OneOf([                                # half 'interpolation = 0', half 'interpolation = 4'
                     albu.Downscale(scale_min = 0.25, 
                                     scale_max = 0.75, 
@@ -704,23 +704,23 @@ def get_intensity_transforms(inho_vol, config):
                                     scale_max = 0.75, 
                                     interpolation = 4,      # (cv2.INTER_LANCZOS4)
                                     p = 1.),
-                ], p=config.augment.prob_down),
-                GammaNoiseAugment(p_by_slice=0.5, p = config.augment.prob_gamm),
-                ContrastNoiseAugment(p = config.augment.prob_cont),
-                SliceSpacingNoiseAugment(p = config.augment.prob_slic),
-                FastBiasNoiseAugment(p = config.augment.prob_bias),   
-                InhomogeneityNoiseAugment(inho_vol, p = config.augment.prob_inho),  # Inhomogeneity noise 
-                RandomMotionAugment(p=config.augment.prob_moti),
-                RandomGhostingAugment(p = config.augment.prob_ghos)
-            ], p = config.augment.prob_colo),
-        ], p=config.augment.prob_overall)
+                ], p=augment.prob_down),
+                GammaNoiseAugment(p_by_slice=0.5, p = augment.prob_gamm),
+                ContrastNoiseAugment(p = augment.prob_cont),
+                SliceSpacingNoiseAugment(p = augment.prob_slic),
+                FastBiasNoiseAugment(p = augment.prob_bias),   
+                InhomogeneityNoiseAugment(inho_vol, p = augment.prob_inho),  # Inhomogeneity noise 
+                RandomMotionAugment(p=augment.prob_moti),
+                RandomGhostingAugment(p = augment.prob_ghos)
+            ], p = augment.prob_colo),
+        ], p=augment.prob_overall)
     else: # This should only happen if it's a single type that is rota or tran, so we don't return any augmentations
         return None
 
 class Augmenter: # New augmentation class. Recommended to use this now instead of the above direct functions
-    def __init__(self, inho_vol, config: Config):
-        self.geom = get_geometric_transforms(config)
-        self.other = get_intensity_transforms(inho_vol, config)
+    def __init__(self, inho_vol, augment: AugmentConfig):
+        self.geom = get_geometric_transforms(augment)
+        self.other = get_intensity_transforms(inho_vol, augment)
 
         # This part is just to ensure that the probabilities are normalized to levels that we expect. 
         # Internally, the normalization is done by albumentations OneOf
@@ -733,18 +733,18 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         def scale(weights, prob):
             return {k: v * prob for k, v in weights.items()}
         
-        augdict = config.augment.dict()
+        augdict = augment.dict()
         non_geo_weights = calculate_weights({k: v for k, v in augdict.items() \
                                     if 'prob' in k and k not in ['prob_overall', \
                                                                  'prob_geom', 'prob_colo', \
                                                                 'prob_tran', 'prob_rota']})
         # Scale the non-geometric probabilities by the color augmentation probability and overall probability
-        non_geo_weights = scale(non_geo_weights, config.augment.prob_colo*config.augment.prob_overall)
+        non_geo_weights = scale(non_geo_weights, augment.prob_colo*augment.prob_overall)
 
-        geo_weights = calculate_weights({k: v*config.augment.prob_geom*config.augment.prob_overall for k, v in augdict.items() \
+        geo_weights = calculate_weights({k: v*augment.prob_geom*augment.prob_overall for k, v in augdict.items() \
                                     if k in ['prob_tran', 'prob_rota']})
         # Scale the geometric probabilities by the overall probability and geometric probability
-        geo_weights = scale(geo_weights, config.augment.prob_overall*config.augment.prob_geom)
+        geo_weights = scale(geo_weights, augment.prob_overall*augment.prob_geom)
 
         logger.info(f'Augmentation Normalized Probabilities:')
         logger.info(f'\tGeom Probabilities: {geo_weights}')
@@ -765,20 +765,20 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         
         return self.identity(image)
 
-def get_augmenter(inho_vol, config):
+def get_augmenter(inho_vol, augment: AugmentConfig):
     """
     Use this function to get an instance of the Augmenter class for augmenting volumes. Returns None if augmentations aren't active.
     Sample code snippet: 
         dataset = dataset_manager.prepareDataset(config)
 
         # Create TF datasets for train and valid sets
-        augmenter = get_augmenter(dataset['inhomogeneity_volume'], config)
+        augmenter = get_augmenter(dataset['inhomogeneity_volume'], config.augment)
 
         ds_train, ds_valid, ds_test = dataset_manager.TFDatasetGenerator(config, dataset, augmenter)
         ds_data = {'train': ds_train, 'valid': ds_valid, 'test': ds_test} 
     """
-    if config.augment.augmentation:
-        augmenter = Augmenter(inho_vol, config)
+    if augment.augmentation:
+        augmenter = Augmenter(inho_vol, augment)
     else:
         augmenter = None
 
