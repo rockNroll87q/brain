@@ -20,7 +20,6 @@ from scipy import stats
 from loguru import logger
 from typing import Tuple, Union, Optional
 
-
 def addWeighted(src1, alpha, src2, beta, gamma):
     """ 
     Calculates the weighted sum of two arrays (cv2 replaced).
@@ -776,10 +775,9 @@ def get_intensity_transforms(inho_vol, augment:AugmentConfig):
         return None
 
 class Augmenter: # New augmentation class. Recommended to use this now instead of the above direct functions
-    def __init__(self, inho_vol, augment: AugmentConfig):
-        self.geom = get_geometric_transforms(augment)
-        self.other = get_intensity_transforms(inho_vol, augment)
-
+    def __init__(self, inho_vol, augmentConfig: AugmentConfig):
+        self.inho_vol = inho_vol
+        self.augmentConfig = augmentConfig
         # This part is just to ensure that the probabilities are normalized to levels that we expect. 
         # Internally, the normalization is done by albumentations OneOf
         # It doesn't affect the augmentations themselves, but it does ensure that we get a reasonable distribution of types.
@@ -791,53 +789,46 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         def scale(weights, prob):
             return {k: v * prob for k, v in weights.items()}
         
-        augdict = augment.dict()
+        augdict = augmentConfig.dict()
         non_geo_weights = calculate_weights({k: v for k, v in augdict.items() \
                                     if 'prob' in k and k not in ['prob_overall', \
                                                                  'prob_geom', 'prob_colo', \
-                                                                'prob_tran', 'prob_rota']})
+                                                                'prob_tran', 'prob_rota', \
+                                                                'prob_neck']})
         # Scale the non-geometric probabilities by the color augmentation probability and overall probability
-        non_geo_weights = scale(non_geo_weights, augment.prob_colo*augment.prob_overall)
+        non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo*augmentConfig.prob_overall)
 
-        geo_weights = calculate_weights({k: v*augment.prob_geom*augment.prob_overall for k, v in augdict.items() \
+        geo_weights = calculate_weights({k: v*augmentConfig.prob_geom*augmentConfig.prob_overall for k, v in augdict.items() \
                                     if k in ['prob_tran', 'prob_rota']})
         # Scale the geometric probabilities by the overall probability and geometric probability
-        geo_weights = scale(geo_weights, augment.prob_overall*augment.prob_geom)
+        geo_weights = scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
 
         logger.info(f'Augmentation Normalized Probabilities:')
         logger.info(f'\tGeom Probabilities: {geo_weights}')
         logger.info(f'\tNon-geom Probabilities: {non_geo_weights}')
 
-    def identity(self, image):
-        return {'image': image}
+    def identity(self, image, mask=None):
+        if mask is None:
+            return {'image': image}
+        else:
+            return {'image': image, 'mask': mask}
 
-    def geometric_augmentation(self, image): # Returns a geometrically transformed volume, if specified. Otherwise, returns image without change
-        if self.geom is not None: # Can be none in cases where 'single_type' doesn't include a geometric transform
-            return self.geom(image=image)
-        
-        return self.identity(image)
-    
-    def intensity_augmentation(self, image): # Returns an intensity-transformed volume, if specified. Otherwise, returns image without change
-        if self.other is not None: # Can be none in cases where 'single_type' doesn't include an intensity transform
-            return self.other(image=image)
-        
-        return self.identity(image)
+    @classmethod
+    def get_augmenter(cls, inho_vol, augment: AugmentConfig):
+        """
+        Use this function to get an instance of the Augmenter class for augmenting volumes. Returns None if augmentations aren't active.
+        Sample code snippet: 
+            dataset = dataset_manager.prepareDataset(config)
 
-def get_augmenter(inho_vol, augment: AugmentConfig):
-    """
-    Use this function to get an instance of the Augmenter class for augmenting volumes. Returns None if augmentations aren't active.
-    Sample code snippet: 
-        dataset = dataset_manager.prepareDataset(config)
+            # Create TF datasets for train and valid sets
+            augmenter = Augmenter.get_augmenter(dataset['inhomogeneity_volume'], config.augment)
 
-        # Create TF datasets for train and valid sets
-        augmenter = get_augmenter(dataset['inhomogeneity_volume'], config.augment)
+            ds_train, ds_valid, ds_test = dataset_manager.TFDatasetGenerator(config, dataset, augmenter)
+            ds_data = {'train': ds_train, 'valid': ds_valid, 'test': ds_test} 
+        """
+        if augment.augmentation:
+            augmenter = cls(inho_vol, augment)
+        else:
+            augmenter = None
 
-        ds_train, ds_valid, ds_test = dataset_manager.TFDatasetGenerator(config, dataset, augmenter)
-        ds_data = {'train': ds_train, 'valid': ds_valid, 'test': ds_test} 
-    """
-    if augment.augmentation:
-        augmenter = Augmenter(inho_vol, augment)
-    else:
-        augmenter = None
-
-    return augmenter
+        return augmenter

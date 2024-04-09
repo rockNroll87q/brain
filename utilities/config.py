@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field, PositiveInt, PositiveFloat, validator, Ne
 
 class AugmentConfig(BaseModel):
     augmentation: bool = Field(False, title="use or not data augmentation")
-    single_type: Optional[str] = Field(None, title="specify a single augmentation to use. If not specified, uses old behaviour (selecting based on probabilities)")
     prob_overall: float = Field(0.9, title="overall probability to apply data augmentation (training ONLY)")
 
     prob_flip: float = Field(0.0, title="probability to apply 'VerticalFlip'")
