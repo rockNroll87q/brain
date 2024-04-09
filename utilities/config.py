@@ -26,3 +26,5 @@ class AugmentConfig(BaseModel):
     prob_cont: float = Field(1.0, title="probability to apply 'ContrastNoiseAugment'")
     prob_slic: float = Field(1.0, title="probability to apply 'SliceSpacingNoiseAugment'")
     prob_bias: float = Field(1.0, title="probability to apply 'BiasNoiseAugment'")
+    prob_neck: float = Field(0.0, title="probability to apply 'SliceRepetitionNeckNoiseAugment'")
+    
