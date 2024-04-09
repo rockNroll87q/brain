@@ -173,6 +173,46 @@ class GammaNoiseAugment(ImageOnlyTransform):
 
         return fast_change_luminance_contrast(img, self.rng, by_slice=by_slice)
 
+
+def augmentation_neck_slice_repetition(X_data: np.ndarray, generator:np.random.Generator, threshold: float=0.025):
+    """ 
+    Function to add slices at the end of the volume (i.e., neck).
+
+    :param X_data: input volume (3D) -> shape (x,y,z)
+    :param threshold: clip at this value (0.025 is like 12 / 255)
+    :return X_data_out: augmented volume
+    """
+
+    X_min, X_max = X_data.min(), X_data.max()
+    X_data_out = ((X_data - X_min) / (X_max - X_min + 0.001))               # move in the range [0, 1]
+    slice_repetitions = generator.integers(10, 30)
+
+    # Find the last slice with no zero values (or almost zero)
+    for i in reversed(range(X_data.shape[2])):
+        if np.max(X_data_out[:, i, :]) > threshold:
+            break
+
+    if i == 0 or i == (X_data.shape[2] - 1):
+        return X_data
+
+    # Take 'i' (-10) slices and copy if 'slice_repetitions' times
+    index_to_copy = i - 10
+    slice_to_copy = X_data_out[:, index_to_copy, :]
+    for j in range(index_to_copy, min(index_to_copy + slice_repetitions, X_data_out.shape[1] - 1)):
+        X_data_out[:, j, :] = slice_to_copy
+
+    X_data_out = X_data_out * (X_max - X_min) + X_min                       # move back in the original range
+
+    return X_data_out
+
+class SliceRepetitionNeckNoiseAugment(ImageOnlyTransform):
+    def __init__(self, seed=None, p=1.0):
+        super(SliceRepetitionNeckNoiseAugment, self).__init__(always_apply=False, p=p)
+        self.rng = np.random.default_rng(seed)
+
+    def apply(self, img, **params):
+        return augmentation_neck_slice_repetition(img, self.rng)
+
 def change_contrast(X_data: np.ndarray, generator:np.random.Generator, min_alpha: float=0.5, max_alpha: float=3.0):
     """ 
     Function to change the contrast of the input volume.
@@ -419,6 +459,11 @@ class TranslationAugment(DualTransform):
                                        shift_x0, shift_x1, shift_x2,
                                        padding_mode='nearest',
                                        spline_interp_order=1)
+        elif np.issubdtype(img.dtype, np.integer):  # mask
+            img_out = translate_volume(img,
+                                       shift_x0, shift_x1, shift_x2,
+                                       padding_mode='constant',
+                                       spline_interp_order=0)
         else:
             raise Exception('Error 23: type not supported.')
 
@@ -485,6 +530,11 @@ class FastTranslationAugment(DualTransform): # This is faster than the other tra
             img_out = fast_translate_volume(img,
                                        shift_x0, shift_x1, shift_x2,
                                        padding_mode=self.padding_mode)
+        elif np.issubdtype(img.dtype, np.integer):  # mask
+            img_out = fast_translate_volume(img,
+                                       shift_x0, shift_x1, shift_x2,
+                                       padding_mode='constant',
+                                       spline_interp_order=0)
         else:
             raise Exception('Error 23: type not supported.')
 
@@ -522,6 +572,14 @@ class RotationAugment(DualTransform):
                              reshape=False,
                              order=self.rot_spline_order,
                              mode='nearest',
+                             prefilter=True)
+        elif np.issubdtype(img.dtype, np.integer):  # mask
+            img_out = rotate(input=img,
+                             angle=random_angle,
+                             axes=rot_axes,
+                             reshape=False,
+                             order=0,
+                             mode='constant',
                              prefilter=True)
         else:
             raise Exception('Error 24: type not supported.')
