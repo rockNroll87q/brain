@@ -1,6 +1,4 @@
-
-from typing import List, Union, Optional
-from pydantic import BaseModel, Field, PositiveInt, PositiveFloat, validator, NegativeFloat, model_validator
+from pydantic import BaseModel, Field
 
 class AugmentConfig(BaseModel):
     augmentation: bool = Field(False, title="use or not data augmentation")
@@ -10,8 +8,8 @@ class AugmentConfig(BaseModel):
     prob_inho: float = Field(1.0, title="probability to apply 'InhomogeneityNoiseAugment'")
 
     prob_geom: float = Field(1.0, title="probability to apply a geometric transformation (one of the following)")
-    # prob_grid: float = Field(0.0, title="probability to apply 'GridDistortion'")
-    # prob_resi: float = Field(0.0, title="probability to apply 'RandomResizedCrop'")
+    prob_grid: float = Field(0.0, title="probability to apply 'GridDistortion'")
+    prob_resi: float = Field(0.0, title="probability to apply 'RandomResizedCrop'")
     prob_rota: float = Field(1.0, title="probability to apply 'RotationAugment'")
     prob_tran: float = Field(1.0, title="probability to apply 'TranslationAugment'")
     prob_moti: float = Field(1.0, title="probability to apply 'RandomMotionAugment'")

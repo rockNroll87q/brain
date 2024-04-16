@@ -44,7 +44,7 @@ def augmentation_salt_and_pepper_noise(X_data, generator:np.random.Generator, am
     :return X_data_out: augmented volume
     """
 
-    X_data_out = X_data
+    X_data_out = X_data.copy()
     salt_vs_pepper = 0.2  # Ration between salt and pepper voxels
     n_salt_voxels = int(np.ceil(amount * np.prod(X_data_out.size) * salt_vs_pepper))
     n_pepper_voxels = int(np.ceil(amount * np.prod(X_data_out.size) * (1.0 - salt_vs_pepper)))
@@ -130,9 +130,14 @@ class InhomogeneityNoiseAugment(ImageOnlyTransform):
         self.inhom_vol = inhom_vol
         self.rng = np.random.default_rng(seed)
 
-    def apply(self, img, **params):
-        return augmentation_inhomogeneity_noise(img, self.inhom_vol, self.rng)
+        if self.inhom_vol is None:
+            logger.warning('Inho volume passed to InhomogeneityNoiseAugment is None. Augmentation will instead be an identity operation.')
 
+    def apply(self, img, **params):
+        if self.inhom_vol is None:
+            return img
+        
+        return augmentation_inhomogeneity_noise(img, self.inhom_vol, self.rng)
 
 
 def fast_change_luminance_contrast(X_data, generator:np.random.Generator, clipping=False, threshold=0.025, by_slice=True):
@@ -339,6 +344,9 @@ class FastBiasNoiseAugment(ImageOnlyTransform):
         :param shape: Shape of the volume for which noise is precomputed.
         :param seed: Random seed for reproducibility.
         """
+        if p == 0:
+            return
+        
         self.rng = np.random.default_rng(seed)
         self.noise_volumes = self._precompute_noise_volumes(max_cycles, factor, shape)
         self.translate = FastTranslationAugment(max_shift=[80, 80, 80], padding_mode='wrap', p=0.5)
@@ -374,6 +382,8 @@ class FastBiasNoiseAugment(ImageOnlyTransform):
         :param img: Input volume (3D) with shape matching the precomputed noise.
         :return: Augmented volume.
         """
+        if self.p == 0:
+            return img
 
         # Randomly select one of the precomputed noise patterns
         idx = self.rng.integers(0, len(self.noise_volumes))
@@ -532,8 +542,7 @@ class FastTranslationAugment(DualTransform): # This is faster than the other tra
         elif np.issubdtype(img.dtype, np.integer):  # mask
             img_out = fast_translate_volume(img,
                                        shift_x0, shift_x1, shift_x2,
-                                       padding_mode='constant',
-                                       spline_interp_order=0)
+                                       padding_mode='constant')
         else:
             raise Exception('Error 23: type not supported.')
 
@@ -682,7 +691,19 @@ def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name):
         "slic": SliceSpacingNoiseAugment(p=augment.prob_slic),
         "bias": FastBiasNoiseAugment(p=augment.prob_bias),
         "moti": RandomMotionAugment(p=augment.prob_moti),
-        "ghos": RandomGhostingAugment(p = augment.prob_ghos)
+        "ghos": RandomGhostingAugment(p = augment.prob_ghos),
+        "neck": SliceRepetitionNeckNoiseAugment(p = augment.prob_neck),
+        "grid": albu.GridDistortion(num_steps = 5,
+                                    distort_limit = (-0.10, +0.10),
+                                    interpolation = 4,
+                                    border_mode = 1,
+                                    p = augment.prob_grid),
+        "resi": albu.RandomResizedCrop(height = 256,
+                                        width = 256,
+                                        scale = (0.9, 1.0),
+                                        ratio = (0.8, 1.20),
+                                        interpolation = 4,
+                                        p = augment.prob_resi),
     }
     return augmentations.get(name)
 
@@ -695,7 +716,10 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         # It doesn't affect the augmentations themselves, but it does ensure that we get a reasonable distribution of types.
         def calculate_weights(desired_probabilities):
             total_probability = sum(desired_probabilities.values())
-            normalized_weights = {k: v / total_probability for k, v in desired_probabilities.items()}
+            if total_probability == 0:
+                normalized_weights = {k: 0.0 for k, v in desired_probabilities.items()}
+            else:
+                normalized_weights = {k: v / total_probability for k, v in desired_probabilities.items()}
             return normalized_weights
 
         def scale(weights, prob):
@@ -705,8 +729,7 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         non_geo_weights = calculate_weights({k: v for k, v in augdict.items() \
                                     if 'prob' in k and k not in ['prob_overall', \
                                                                  'prob_geom', 'prob_colo', \
-                                                                'prob_tran', 'prob_rota', \
-                                                                'prob_neck']})
+                                                                'prob_tran', 'prob_rota']})
         # Scale the non-geometric probabilities by the color augmentation probability and overall probability
         non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo*augmentConfig.prob_overall)
 
@@ -715,9 +738,9 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         # Scale the geometric probabilities by the overall probability and geometric probability
         geo_weights = scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
 
-        logger.info(f'Augmentation Normalized Probabilities:')
-        logger.info(f'\tGeom Probabilities: {geo_weights}')
-        logger.info(f'\tNon-geom Probabilities: {non_geo_weights}')
+        logger.debug(f'Augmentation Normalized Probabilities:')
+        logger.debug(f'\tGeom Probabilities: {geo_weights}')
+        logger.debug(f'\tNon-geom Probabilities: {non_geo_weights}')
 
     def identity(self, image, mask=None):
         if mask is None:
