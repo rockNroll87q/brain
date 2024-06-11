@@ -245,29 +245,38 @@ class ContrastNoiseAugment(ImageOnlyTransform):
     def apply(self, img, **params):
         return change_contrast(img, self.rng)
 
-
-def slice_spacing(X_data: np.ndarray, generator:np.random.Generator, min_slice_rep: int=2, max_slice_rep: int=5):
+def slice_spacing(X_data: np.ndarray, generator: np.random.Generator, min_slice_rep: int = 2, max_slice_rep: int = 5):
     """ 
-    Function to add more slices of the input volume in Axial view.
+    Function to add more slices of the input volume in a random view (Axial, Coronal, or Sagittal).
     If 'slice_repetitions'=2, means every slice is repeated twice (for a total of 2, consecutive).
     
-
     :param X_data: input volume (3D) -> shape (x,y,z)
-    :param min_slice_rep: min amount of consecutive slices in Axial view
-    :param max_slice_rep: max amount of consecutive slices in Axial view
+    :param min_slice_rep: min amount of consecutive slices
+    :param max_slice_rep: max amount of consecutive slices
     :return X_data_out: augmented volume
     """
 
     slice_repetitions = generator.integers(min_slice_rep, max_slice_rep)
+    axis = generator.integers(0, 3)  # Randomly select an axis (0, 1, or 2)
 
-    # Apply contrast change to 'X_data'
-    X_data_out = X_data[:, ::(slice_repetitions), :]                    # keep only '256/(slice_repetitions)' slices
-    X_data_out = np.repeat(X_data_out, slice_repetitions, axis=1)       # repeat the slice 'slice_repetitions' times
-    X_data_out = X_data_out[:, :X_data.shape[2], :]                     # take the same shape as the beginning
+    # Apply slice repetition along the randomly selected axis
+    if axis == 0:
+        X_data_out = X_data[::slice_repetitions, :, :]                # keep only 'x/(slice_repetitions)' slices
+        X_data_out = np.repeat(X_data_out, slice_repetitions, axis=0) # repeat the slice 'slice_repetitions' times
+        X_data_out = X_data_out[:X_data.shape[0], :, :]               # take the same shape as the beginning
+    elif axis == 1:
+        X_data_out = X_data[:, ::slice_repetitions, :]                # keep only 'y/(slice_repetitions)' slices
+        X_data_out = np.repeat(X_data_out, slice_repetitions, axis=1) # repeat the slice 'slice_repetitions' times
+        X_data_out = X_data_out[:, :X_data.shape[1], :]               # take the same shape as the beginning
+    else:
+        X_data_out = X_data[:, :, ::slice_repetitions]                # keep only 'z/(slice_repetitions)' slices
+        X_data_out = np.repeat(X_data_out, slice_repetitions, axis=2) # repeat the slice 'slice_repetitions' times
+        X_data_out = X_data_out[:, :, :X_data.shape[2]]               # take the same shape as the beginning
 
     assert X_data_out.shape == X_data.shape
 
     return X_data_out
+
 
 
 class SliceSpacingNoiseAugment(ImageOnlyTransform):
