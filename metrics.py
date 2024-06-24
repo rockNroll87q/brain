@@ -167,16 +167,16 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 class BasicMetricsWrapper:
     def __init__(
-        self, y_true=None, y_pred=None, df=None, y_true_col=None, y_pred_col=None
+        self, y_true=None, y_pred=None, df=None
     ):
-        if all(isinstance(arg, str) for arg in [y_true_col, y_pred_col]):
+        if all(isinstance(arg, str) for arg in [y_true, y_pred]):
             if df is None:
                 raise ValueError(
                     "If y_true_col and y_pred_col string column names, df must be provided."
                 )
 
-            self.y_true = df[y_true_col].values
-            self.y_pred = df[y_pred_col].values
+            self.y_true = df[y_true].values
+            self.y_pred = df[y_pred].values
 
         elif all(isinstance(arg, np.ndarray) for arg in [y_true, y_pred]):
             if len(y_true) != len(y_pred):
@@ -211,8 +211,9 @@ class BasicMetricsWrapper:
     def pearsons_r(self):
         return pearsons_r(self.y_true, self.y_pred)
 
-    def maxMAE(self):
-        return maxMAE(self.y_true, self.y_pred, categories=self.default_bins)
+    def maxMAE(self, categories=None):
+        categories = self.default_bins if categories is None else categories
+        return maxMAE(self.y_true, self.y_pred, categories=categories)
 
     def calculate_metrics(self):
         metrics = {
