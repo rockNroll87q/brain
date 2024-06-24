@@ -213,7 +213,7 @@ class LongitudinalMetricsWrapper:
             self.y2 = y2
             self.y_pred1 = y_pred1
             self.y_pred2 = y_pred2
-            
+
         else:
             raise ValueError("y1, y2, y_pred1, and y_pred2 must be either all strings or all numpy arrays.")
 
@@ -241,6 +241,20 @@ class LongitudinalMetricsWrapper:
 
     def maxMAdE(self, y_cat, y, y_pred, categories):
         return maxMAdE(y_cat, y, y_pred, categories=categories)
+    
+    def k(self):
+        return self.y_pred_delta / self.y_delta
+
+    def calculate_metrics(self):
+        metrics = {
+            'MdE': self.mde(),
+            'MdEsd': self.mde_sd(),
+            'MAdE': self.made(),
+            'MAdEsd': self.made_sd(),
+            'maxMAdE_10y': self.maxMAdE_10y(),
+            'k': self.k()
+        }
+        return pd.DataFrame([metrics])
 
 # Example usage with a DataFrame:
 # Assuming df is your DataFrame and it contains the columns: 'y1', 'y2', 'y_pred1', 'y_pred2'
