@@ -219,12 +219,13 @@ class BasicMetricsWrapper:
         metrics = {
             "MAE": self.mae(),
             "MSE": self.mse(),
+            "ME": self.me(),
             "RMSE": self.rmse(),
-            "r_squared": self.r_squared(),
+            "r2_score": self.r_squared(),
             "pearsons_r": self.pearsons_r(),
             "maxMAE": self.maxMAE(),
         }
-        return pd.DataFrame([metrics])
+        return metrics
 
 
 class LongitudinalMetricsWrapper:
@@ -293,7 +294,7 @@ class LongitudinalMetricsWrapper:
             "maxMAdE_10y": self.maxMAdE_10y(),
             "k": self.k(),
         }
-        return pd.DataFrame([metrics])
+        return metrics
 
 
 # Example usage with a DataFrame:
