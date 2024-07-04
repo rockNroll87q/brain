@@ -1,3 +1,12 @@
+"""
+Created on 01-03-2024
+
+@authors:
+* Austin Dibble, University of Glasgow
+
+Custom early stopping callback with a timer component.
+"""
+
 import tensorflow as tf
 from datetime import timedelta
 from typing import Union
