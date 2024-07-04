@@ -68,10 +68,13 @@ def categorize(
     if len(bin) < 2:
         warnings.warn("Vector remains unchanged; Expected len(bin)>=2.")
         return num_vector
-
-    # Check for out of range values
-    if np.any(num_vector < bin[0]) or np.any(num_vector > bin[-1]):
-        raise ValueError(f"Values should be within the range [{bin[0]}, {bin[-1]}]")
+    
+    # Code change by Austin Dibble
+    if num_vector.min() < bin[0]:
+        bin = np.insert(bin, 0, num_vector.min())
+    
+    if num_vector.max() > bin[-1]:
+        bin = np.insert(bin, len(bin), num_vector.max())
 
     # Assign bin
     category_labels = [f"[{int(cat1)},{int(cat2)})" for cat1, cat2 in zip(bin, bin[1:])]
