@@ -39,6 +39,9 @@ import pandas as pd
 from sklearn.metrics import r2_score, mean_squared_error
 import numpy as np
 
+from sklearn.metrics import mean_absolute_error, mean_squared_error # Imports added by Austin Dibble
+
+
 # Copied from src.auxiliary from original source repository
 def categorize(
     num_vector,
@@ -165,8 +168,6 @@ def R_squared(y: np.ndarray, y_pred: np.ndarray):
 
 
 # == Code below here was completely added by Austin Dibble ==
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-
 
 class BasicMetricsWrapper:
     def __init__(
