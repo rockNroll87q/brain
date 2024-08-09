@@ -683,25 +683,25 @@ class RandomGhostingAugment(ImageOnlyTransform):
 
         return np.squeeze(self.randGhost(np.expand_dims(img, axis=0)), axis=0)
 
-def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name):
+def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
     augmentations = {
-        "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho),
-        "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1),
-        "tran": FastTranslationAugment(padding_mode='wrap', p=augment.prob_tran),
-        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur),
-        "salt": SaltAndPepperNoiseAugment(p=augment.prob_salt),
-        "gaus": GaussianNoiseAugment(p=augment.prob_gaus),
+        "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho,seed=seed),
+        "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1, seed=seed),
+        "tran": FastTranslationAugment(padding_mode='wrap', p=augment.prob_tran, seed=seed),
+        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur, seed=seed),
+        "salt": SaltAndPepperNoiseAugment(p=augment.prob_salt, seed=seed),
+        "gaus": GaussianNoiseAugment(p=augment.prob_gaus, seed=seed),
         "down": albu.OneOf([                                
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=0, p=1.),
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=4, p=1.),
                 ], p=augment.prob_down),
-        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=augment.prob_gamm),
-        "cont": ContrastNoiseAugment(p=augment.prob_cont),
-        "slic": SliceSpacingNoiseAugment(p=augment.prob_slic),
-        "bias": FastBiasNoiseAugment(p=augment.prob_bias),
-        "moti": RandomMotionAugment(p=augment.prob_moti),
-        "ghos": RandomGhostingAugment(p = augment.prob_ghos),
-        "neck": SliceRepetitionNeckNoiseAugment(p = augment.prob_neck),
+        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=augment.prob_gamm, seed=seed),
+        "cont": ContrastNoiseAugment(p=augment.prob_cont, seed=seed),
+        "slic": SliceSpacingNoiseAugment(p=augment.prob_slic, seed=seed),
+        "bias": FastBiasNoiseAugment(p=augment.prob_bias, seed=seed),
+        "moti": RandomMotionAugment(p=augment.prob_moti, seed=seed),
+        "ghos": RandomGhostingAugment(p = augment.prob_ghos, seed=seed),
+        "neck": SliceRepetitionNeckNoiseAugment(p = augment.prob_neck, seed=seed),
         "grid": albu.GridDistortion(num_steps = 5,
                                     distort_limit = (-0.10, +0.10),
                                     interpolation = 4,
@@ -758,7 +758,7 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             return {'image': image, 'mask': mask}
 
     @classmethod
-    def get_augmenter(cls, inho_vol, augment: AugmentConfig):
+    def get_augmenter(cls, inho_vol, augment: AugmentConfig, **kwargs):
         """
         Use this function to get an instance of the Augmenter class for augmenting volumes. Returns None if augmentations aren't active.
         Sample code snippet: 
@@ -771,7 +771,7 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             ds_data = {'train': ds_train, 'valid': ds_valid, 'test': ds_test} 
         """
         if augment.augmentation:
-            augmenter = cls(inho_vol, augment)
+            augmenter = cls(inho_vol, augment, **kwargs)
         else:
             augmenter = None
 
