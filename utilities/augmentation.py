@@ -735,15 +735,27 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             return {k: v * prob for k, v in weights.items()}
         
         augdict = augmentConfig.dict()
+        # Normalize the prob weights in groups for geo/non-geo augmentations
         non_geo_weights = calculate_weights({k: v for k, v in augdict.items() \
                                     if 'prob' in k and k not in ['prob_overall', \
                                                                  'prob_geom', 'prob_colo', \
                                                                 'prob_tran', 'prob_rota']})
+        geo_weights = calculate_weights({k: v for k, v in augdict.items() \
+                            if k in ['prob_tran', 'prob_rota']})
+
+        # Update config weights with normalized ones, since albumentations change their API requirements
+        for k, v in non_geo_weights.items():
+            # augmentConfig[k] = v
+            setattr(augmentConfig, k, v)
+
+        for k, v in geo_weights.items():
+            # augmentConfig[k] = v
+            setattr(augmentConfig, k, v)
+
+        # == Printing logic below for debugging ==
+
         # Scale the non-geometric probabilities by the color augmentation probability and overall probability
         non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo*augmentConfig.prob_overall)
-
-        geo_weights = calculate_weights({k: v*augmentConfig.prob_geom*augmentConfig.prob_overall for k, v in augdict.items() \
-                                    if k in ['prob_tran', 'prob_rota']})
         # Scale the geometric probabilities by the overall probability and geometric probability
         geo_weights = scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
 
