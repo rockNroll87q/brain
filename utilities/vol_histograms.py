@@ -28,8 +28,9 @@ def parse_arguments():
     parser.add_argument('--csv_path', required=True, type=str, help='Path to the input CSV file.')
     parser.add_argument('--col', required=True, type=str, help='Column name in the CSV file containing paths to .nii.gz files.')
     parser.add_argument('--outdir', required=True, type=str, help='Directory where the results will be stored.')
-    parser.add_argument('--dataset_name', default='ADNI', type=str, help='Directory where the results will be stored.')
+    parser.add_argument('--dataset_name', default='ADNI', type=str, help='Name of the dataset')
     parser.add_argument('--num_vols', default=1000, type=int, help='Directory where the results will be stored.')
+    parser.add_argument('--images_path', required=False, type=str, help='Provide the root path of the ADNI image data to use a different data folder.')
 
     return parser.parse_args()
 
@@ -39,8 +40,23 @@ def create_output_folder(base_output_dir, dataset_name):
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
 
-def load_volume_paths(csv_path, column_name):
+def load_volume_paths(csv_path, column_name, images_path=None):
     df = pd.read_csv(csv_path)
+
+    df[column_name].replace('', np.nan, inplace=True)
+    df.dropna(inplace=True)
+
+    def update_path(file_path):
+        base_filename = Path(file_path).name  # Get the base filename
+        new_full_path = images_path / base_filename  # Prepend the new path
+        new_full_path_str = str(new_full_path)
+        new_full_path_str = new_full_path_str.replace('___', '_')
+        new_full_path_str = new_full_path_str.replace('__', '_')
+        return new_full_path_str
+
+    if images_path:
+        df[column_name] = df[column_name].apply(update_path)
+
     return df[column_name].tolist()
 
 
@@ -121,7 +137,7 @@ def main():
     out_dir = create_output_folder(output_dir, args.dataset_name)
     
     logger.info('Loading CSV paths')
-    volume_paths = load_volume_paths(csv_path, column_name)
+    volume_paths = load_volume_paths(csv_path, column_name, Path(args.images_path))
     
     logger.info('Sampling paths from CSV')
     volume_paths = sample_paths(volume_paths, sample_size=args.num_vols)
