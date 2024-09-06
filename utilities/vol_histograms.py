@@ -1,11 +1,12 @@
 """
+@authors:
+* Austin Dibble, University of Glasgow
 
-
+Utility for calculating the voxel intensity histograms of a dataset.
 
 Example (in container): python ./brain/utilities/vol_histograms.py 
     --csv_path /brain_age/output/2024-08-02_17-52-08_model=sxogyn5q_test_T1_ADNI/final.csv 
     --col X_test --outdir /brain_age/output/ --dataset_name ADNI
-
 
 """
 
