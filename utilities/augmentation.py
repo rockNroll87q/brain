@@ -12,13 +12,20 @@ Functions to augment training data.
 
 import numpy as np
 from scipy.ndimage import affine_transform
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, zoom
 import albumentations as albu
 from albumentations.core.transforms_interface import ImageOnlyTransform, DualTransform
 from brain.utilities.config import AugmentConfig
 from scipy import stats
 from loguru import logger
 from typing import Tuple, Union, Optional
+
+def zoom_volume(X_data: np.ndarray, scale:float, order:int=3, fill_value=0) -> np.ndarray:
+    """
+    Performs a 3D zoom on the input volume.
+    """
+
+    return zoom(X_data, scale, order=order, mode='constant', cval=fill_value)
 
 def addWeighted(src1, alpha, src2, beta, gamma):
     """ 
