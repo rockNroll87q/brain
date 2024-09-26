@@ -32,6 +32,7 @@ def parse_arguments():
     parser.add_argument('--dataset_name', default='ADNI', type=str, help='Name of the dataset')
     parser.add_argument('--num_vols', default=1000, type=int, help='Directory where the results will be stored.')
     parser.add_argument('--images_path', required=False, type=str, help='Provide the root path of the ADNI image data to use a different data folder.')
+    parser.add_argument('--calc_volume_only', action='store_true', help='If set, only the volume will be calculated and not the histogram.')
 
     return parser.parse_args()
 
@@ -44,8 +45,12 @@ def create_output_folder(base_output_dir, dataset_name):
 def load_volume_paths(csv_path, column_name, images_path=None):
     df = pd.read_csv(csv_path)
 
+    logger.info(df[column_name].head())
+
     df[column_name].replace('', np.nan, inplace=True)
-    df.dropna(inplace=True)
+    df.dropna(inplace=True, subset=[column_name])
+
+    logger.info(df.head())
 
     def update_path(file_path):
         base_filename = Path(file_path).name  # Get the base filename
@@ -84,7 +89,16 @@ def calculate_histogram(volume_path, bin_edges, z_bin_edges):
     z_data = z_scoring(data)
     z_hist, _ = np.histogram(z_data, bins=z_bin_edges)
 
-    return hist, z_hist
+    # Calculate the number of voxels which are non-zero in the data numpy array
+    num_nonzero = np.count_nonzero(data)
+
+    return hist, z_hist, num_nonzero
+
+def calculate_vol_size(volume_path):
+    img = nib.load(volume_path)
+    data = img.get_fdata()
+    non_zero_x = ~np.isclose(data, 0)
+    return np.count_nonzero(data[non_zero_x])
 
 def calculate_bin_edges(vol_paths):
         # Determine the global min and max values across all volumes
@@ -137,49 +151,72 @@ def main():
         
     out_dir = create_output_folder(output_dir, args.dataset_name)
     
-    logger.info('Loading CSV paths')
-    volume_paths = load_volume_paths(csv_path, column_name, Path(args.images_path))
+    logger.info(f'Loading CSV paths from {args.csv_path}.')
+    images_path = Path(args.images_path) if args.images_path else None
+    volume_paths = load_volume_paths(csv_path, column_name, images_path)
     
-    logger.info('Sampling paths from CSV')
+    logger.info(f'Found {len(volume_paths)} paths.')
+
+    logger.info(f'Sampling {args.num_vols} paths from CSV')
     volume_paths = sample_paths(volume_paths, sample_size=args.num_vols)
     
-    logger.info('Calculate bin edges from global min/max')
-    bin_edges, z_bin_edges = calculate_bin_edges(volume_paths)
-
-    logger.info('Adding up voxel histograms')
-    histograms = []
-    zscore_histograms = []
-    for volume_path in volume_paths:
-        hist, z_hist = calculate_histogram(volume_path, bin_edges, z_bin_edges)
-        histograms.append(hist)
-
-        zscore_histograms.append(z_hist)
-    
-    mean_histogram = np.mean(histograms, axis=0)
-    mean_z_histogram = np.mean(zscore_histograms, axis=0)
-    
-    def save_hist(hist, bin_edges, file:str):
-
-        # Plot the mean histogram
-        plt.figure(figsize=(10, 6))
-        plt.plot(bin_edges[:-1], hist)  # Use bin edges for x-axis        
-        plt.title('Mean Voxel Intensity Histogram')
-        plt.xlabel('Intensity Value')
-        plt.ylabel('Frequency')
-        plt.grid(True)
+    if args.calc_volume_only:
+        logger.info(f'Calculating volume sizes only for {len(volume_paths)} volumes.')
+        volume_sizes = {'path': [], 'size': []}
+        for volume_path in volume_paths:
+            volume_sizes['path'].append(volume_path)
+            volume_sizes['size'].append(calculate_vol_size(volume_path))
         
-        # Save the plot
-        plot_path = out_dir / file
-        plt.savefig(plot_path)
+        logger.info(f'Saving volume sizes to {out_dir / "volume_sizes.csv"}.')
+        df = pd.DataFrame(data=volume_sizes)
+
+        df['mean'] = df['size'].mean()
+        df.to_csv(out_dir / 'volume_sizes.csv', index=False)
+
+    else:
+        logger.info('Calculate bin edges from global min/max')
+        bin_edges, z_bin_edges = calculate_bin_edges(volume_paths)
+
+        logger.info('Adding up voxel histograms')
+        histograms = []
+        zscore_histograms = []
+        volume_sizes = {'path': [], 'size': []}
+        for volume_path in volume_paths:
+            hist, z_hist, num_nonzero = calculate_histogram(volume_path, bin_edges, z_bin_edges)
+            histograms.append(hist)
+            zscore_histograms.append(z_hist)
+            volume_sizes['path'].append(volume_path)
+            volume_sizes['size'].append(num_nonzero)
         
-        print(f'Mean histogram plot saved to {plot_path}')
+        df = pd.DataFrame(data=volume_sizes)
+        df['mean'] = df['size'].mean()
+        df.to_csv(out_dir / 'volume_sizes.csv', index=False)
 
-        np.save(out_dir / f'{plot_path.stem}.npy', hist)
-        np.save(out_dir / f'{plot_path.stem}_edges.npy', np.asarray(bin_edges))
+        mean_histogram = np.mean(histograms, axis=0)
+        mean_z_histogram = np.mean(zscore_histograms, axis=0)
+        
+        def save_hist(hist, bin_edges, file:str):
 
-    logger.info('Plotting')
-    save_hist(mean_histogram, bin_edges, file='mean_hist.png')
-    save_hist(mean_z_histogram, z_bin_edges, file='mean_z_hist.png')
+            # Plot the mean histogram
+            plt.figure(figsize=(10, 6))
+            plt.plot(bin_edges[:-1], hist)  # Use bin edges for x-axis        
+            plt.title('Mean Voxel Intensity Histogram')
+            plt.xlabel('Intensity Value')
+            plt.ylabel('Frequency')
+            plt.grid(True)
+            
+            # Save the plot
+            plot_path = out_dir / file
+            plt.savefig(plot_path)
+            
+            print(f'Mean histogram plot saved to {plot_path}')
+
+            np.save(out_dir / f'{plot_path.stem}.npy', hist)
+            np.save(out_dir / f'{plot_path.stem}_edges.npy', np.asarray(bin_edges))
+
+        logger.info('Plotting')
+        save_hist(mean_histogram, bin_edges, file='mean_hist.png')
+        save_hist(mean_z_histogram, z_bin_edges, file='mean_z_hist.png')
 
     logger.info('Done')
 
