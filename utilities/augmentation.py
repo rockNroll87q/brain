@@ -16,16 +16,53 @@ from scipy.ndimage import rotate, zoom
 import albumentations as albu
 from albumentations.core.transforms_interface import ImageOnlyTransform, DualTransform
 from brain.utilities.config import AugmentConfig
+from brain.utilities.misc import pad_volume_to_shape
 from scipy import stats
 from loguru import logger
 from typing import Tuple, Union, Optional
 
-def zoom_volume(X_data: np.ndarray, scale:float, order:int=3, fill_value=0) -> np.ndarray:
+def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: int = 0) -> np.ndarray:
     """
-    Performs a 3D zoom on the input volume.
+    Performs a 3D zoom on the input volume, cropping symmetrically on axes
+    larger than the original size and padding on smaller axes.
     """
+    try:
+        import torchio as tio
+    except ImportError as e:
+        logger.warning("torchio module is not currently installed. zoom_volume will use scipy.ndimage.zoom")
+        badImport = True
+    else:
+        randAff = tio.RandomAffine((scale, scale), degrees=(0,0), 
+                                   translation=(0,0), isotropic=True, 
+                                   center='image', default_pad_value=fill_value, image_interpolation='linear')
+        badImport = False
+    
+    if badImport:
+        # Apply the zoom
+        x_zoomed = zoom(X_data, scale, order=order, mode='constant', cval=fill_value)
 
-    return zoom(X_data, scale, order=order, mode='constant', cval=fill_value)
+        # Calculate the cropping indices to keep the zoomed volume centered
+        crop_slices = []
+        for orig_size, zoomed_size in zip(X_data.shape, x_zoomed.shape):
+            if zoomed_size > orig_size:
+                # Calculate start and end indices to crop symmetrically
+                extra_size = zoomed_size - orig_size
+                start_idx = extra_size // 2
+                end_idx = start_idx + orig_size
+                crop_slices.append(slice(start_idx, end_idx))
+            else:
+                # If the zoomed size is smaller, keep the whole axis
+                crop_slices.append(slice(0, zoomed_size))
+        
+        # Crop the zoomed volume symmetrically
+        x_zoomed = x_zoomed[tuple(crop_slices)]
+
+        # Axes that are smaller need padding with zeros to match the original shape
+        x_zoomed, _ = pad_volume_to_shape(x_zoomed, target_shape=X_data.shape)
+
+        return x_zoomed
+    else:
+        return np.squeeze(randAff(np.expand_dims(X_data, axis=0)), axis=0)
 
 def addWeighted(src1, alpha, src2, beta, gamma):
     """ 
