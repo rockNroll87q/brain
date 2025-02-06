@@ -16,7 +16,7 @@ from metrics import (
     LongitudinalMetricsWrapper,
 )
 
-# test with python -m pytest from brain root directory
+# test with `python -m unittest` from brain root directory
 class TestMetricsFunctions(unittest.TestCase):
 
     def setUp(self):
