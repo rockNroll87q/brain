@@ -10,13 +10,11 @@ Example (in container): python ./brain/utilities/vol_histograms.py
 
 """
 
-
 import argparse
 import os
 from pathlib import Path
 from time import localtime, strftime
 import random
-
 
 import pandas as pd
 import nibabel as nib
@@ -101,7 +99,7 @@ def calculate_vol_size(volume_path):
     return np.count_nonzero(data[non_zero_x])
 
 def calculate_bin_edges(vol_paths):
-        # Determine the global min and max values across all volumes
+    # Determine the global min and max values across all volumes
     global_min = float('inf')
     global_max = float('-inf')
 

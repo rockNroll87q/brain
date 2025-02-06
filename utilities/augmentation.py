@@ -817,7 +817,9 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
     def get_augmenter(cls, inho_vol, augment: AugmentConfig, **kwargs):
         """
         Use this function to get an instance of the Augmenter class for augmenting volumes. Returns None if augmentations aren't active.
-        Sample code snippet: 
+        
+        Sample code snippet:: 
+            
             dataset = dataset_manager.prepareDataset(config)
 
             # Create TF datasets for train and valid sets

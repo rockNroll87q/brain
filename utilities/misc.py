@@ -11,6 +11,22 @@ from tensorflow.keras.models import Model
 import numpy as np
 
 def get_mid_layer(model, layer_name):
+    """
+    Returns a new Keras model that has the outputs as the specified intermediate layer.
+    This can be useful for extracting features or using the output of a specific 
+    layer. Pass the returned object of this function to `extract_latent_features`, 
+    for example.
+
+    Parameters:
+        - model (Keras model): The original model from which to extract
+            the intermediate layer.
+        - layer_name (str): The name of the intermediate layer to 
+            extract.
+
+    Returns:
+        - intermediate_layer_model (Keras model): A new Keras model that 
+            only goes up to the specified intermediate layer.
+    """
     intermediate_layer_model = Model(inputs=model.input, outputs=model.get_layer(layer_name).output)
     return intermediate_layer_model
 
@@ -21,10 +37,21 @@ def extract_latent_features(data, layer):
     Parameters:
     - data: The input data to the model.
     - model: The pre-trained Keras model.
-    - layer_name: The name of the layer from which to extract latent features.
+    - layer: The layer object from which to extract latent features. Can be obtained from `get_mid_layer`.
 
     Returns:
     - latent_features: The extracted latent features.
+
+    Example::
+
+        # Get latent features from test data
+        try:
+            model_layer = get_mid_layer(model, layer_name=layer_name)
+        except Exception as e:
+            # Handle error
+            return
+
+        gt_latent_vectors = extract_latent_features(test_data, model_layer)
     """
     latent_features = layer.predict(x=data, verbose=False)
     return latent_features

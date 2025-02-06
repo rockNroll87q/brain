@@ -15,6 +15,54 @@ from loguru import logger
 
 
 class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
+    """
+    Custom early stopping callback with a timer component.
+
+    This callback combines the functionality of TensorFlow's built-in `EarlyStopping` 
+    with an additional timer-based mechanism. It allows you to stop training based on 
+    the monitored metric (e.g., validation loss) as well as after a specified time limit.
+
+    If the estimated total runtime after the next epoch will be greater than the set limit 
+    then training will stop after the current epoch.
+    
+    Parameters:
+        - monitor: The metric to monitor for early stopping. Defaults to 'val_loss'.
+        - min_delta: The minimum change in the monitored metric required to qualify as an improvement.
+        - patience: The number of epochs with no improvement after which training will be stopped. 
+            If `patience` is set to zero, training will stop when a new best is found.
+        - verbose: The verbosity level for the callback. Defaults to 0.
+        - mode: One of {'auto', 'min', 'max'}. In 'auto' mode, the direction of change
+            is automatically inferred from the sign of the derivative (i.e., an improvement 
+            is defined as a decrease if the metric is being minimized, or an increase if it's 
+            being maximized). When `mode` is either 'min' or 'max', direction of change is 
+            determined by whether the metric is being minimized or maximized.
+        - baseline: The baseline value for the monitored metric. Training will stop when
+            the difference between the current and best values reaches `min_delta`. If 
+            `baseline` is None, training will not stop based on a baseline value.
+        - restore_best_weights: Whether to restore the best weights during early stopping.
+        - timelimit: The time limit for training in seconds. It can be an integer or float,
+            a string in 'Xd Yh Zm' format (e.g., '1d 2h 30m'), or a `timedelta` object.
+            A value of 'inf' means there is no timelimit.
+
+    Attributes:
+        - self.timelimit: The time limit for training in seconds.
+
+    Examples::
+
+        # Example using string
+        earlystopper = EarlyStoppingWithTimer(monitor='val_loss', patience=15, verbose=1, 
+                                            restore_best_weights=True, timelimit="1d 2h 30m")
+
+        # Example using a timedelta object
+        earlystopper = EarlyStoppingWithTimer(monitor='val_loss', patience=15, verbose=1, timelimit=datetime.timedelta(days=1))
+
+        # Example using float/int seconds
+        earlystopper = EarlyStoppingWithTimer(monitor='val_loss', patience=15, verbose=1, timelimit=3600)
+
+        # Then, use just like you would with the tf.keras.callbacks.EarlyStopping callback.
+        
+
+    """
     def __init__(self,
                 monitor='val_loss',
                 min_delta=0,
