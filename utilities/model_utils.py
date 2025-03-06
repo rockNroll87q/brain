@@ -144,3 +144,21 @@ def set_trainable(model):
     for layer in model.layers:
         layer.trainable = True
     # recompile(model) Bug: raise an error if tf==2.4.1. Is it needed?
+
+
+def set_trainable_after_layer(model, target_layer_name):
+    """
+    Sets all layers after the specified layer to be trainable.
+    
+    Args:
+        model (tf.keras.Model): The model to modify.
+        target_layer_name (str): The name of the layer after which all layers should be trainable.
+    """
+    found = False
+    for layer in model.layers:
+        if found:
+            layer.trainable = True
+        elif layer.name == target_layer_name:
+            found = True  # Start setting layers as trainable from the next layer
+
+    return found
