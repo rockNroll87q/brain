@@ -84,6 +84,11 @@ class ConfigValidationError(Exception):
     pass
 
 class ConfigLoader:
+    # In our overlap and param checks, these are the built-in keywords which cannot be used as user-defined variables.
+    _g_inbuilt_keywords = {"param_set", "script", "requires_output_var", \
+                           "description", "name", "output_vars", "override", "experiments", "root"}
+
+
     def __init__(self, config_source: Union[str, Path, Dict]):
         """
         Initializes the configuration loader.
@@ -152,13 +157,7 @@ class ConfigLoader:
         if not isinstance(datasets, dict):
             raise ConfigValidationError("Missing or invalid 'datasets' section. Must be a dictionary.")
 
-        for exp_name, exp_def in experiments.items():
-            if not isinstance(exp_def, dict):
-                raise ConfigValidationError(f"Experiment '{exp_name}' must be a dictionary.")
-            if "script" not in exp_def:
-                raise ConfigValidationError(f"Experiment '{exp_name}' is missing required field: 'script'.")
-            if "param_set" in exp_def:
-                self._check_param_conflicts(exp_name, exp_def)
+        self._validate_experiments(experiments)
 
         for dataset_name, dataset_def in datasets.items():
             if not isinstance(dataset_def, dict):
@@ -194,9 +193,32 @@ class ConfigLoader:
 
                 exp_override = exp_entry.get('override', {})
                 if not isinstance(exp_override, dict):
-                    raise ConfigValidationError(f"In '{name}', 'override' must be a dictionary.")
+                    raise ConfigValidationError(f"In '{dataset_name}:{name}', 'override' must be a dictionary.")
+                
+                # Check user variables of this experiment listing under the dataset against the global experiment def
+                conflicts = self._check_user_var_conflicts(global_exp, exp_entry)
+                if conflicts:
+                    raise ConfigValidationError(f"In {dataset_name}:{name}, user-provided variables [{', '.join(conflicts)}] \
+            conflict with those given in the experiment definition. Use override if required.")
+                
+                # Check the user variables of the broader dataset def against the global experiment def
+                conflicts = self._check_user_var_conflicts(global_exp, dataset_def)
+                if conflicts:
+                    raise ConfigValidationError(f"In {dataset_name}, user-provided variables [{', '.join(conflicts)}] \
+            conflict with those given in the experiment definition '{name}'. Use override if required.")
 
         return config
+    
+    def _validate_experiments(self, experiments:dict):
+        for exp_name, exp_def in experiments.items():
+            if not isinstance(exp_def, dict):
+                raise ConfigValidationError(f"Experiment '{exp_name}' must be a dictionary.")
+            if "script" not in exp_def:
+                raise ConfigValidationError(f"Experiment '{exp_name}' is missing required field: 'script'.")
+            if "param_set" in exp_def:
+                self._check_param_conflicts(exp_name, exp_def)
+
+        
 
     def _check_param_conflicts(self, scope_name: str, exp_def: dict):
         """
@@ -209,7 +231,7 @@ class ConfigLoader:
         Raises:
             ConfigValidationError: If conflicts are found.
         """
-        static_keys = set(exp_def.keys()) - {"param_set", "script", "requires_output_var", "description", "name", "output_vars", "override"}
+        static_keys = ConfigLoader._get_object_user_vars(exp_def)
         param_set = exp_def.get("param_set", {})
         if not isinstance(param_set, dict):
             raise ConfigValidationError(f"In '{scope_name}', 'param_set' must be a dictionary.")
@@ -218,6 +240,26 @@ class ConfigLoader:
             raise ConfigValidationError(
                 f"In '{scope_name}', the following keys appear in both static fields and param_set: {sorted(conflicts)}"
             )
+    
+    def _check_user_var_conflicts(self, global_def:dict, local_def:dict):
+        """
+        Get the overlapping variables between some user definition (like in a dataset definition, or dataset-experiment)
+        and the more global-level variables from the global experiment definition.
+
+        Args:
+            global_def (dict): Object from the experiment's definition
+            local_def (dict): dataset or dataset-experiment object.
+
+        Returns:
+            a set of overlapping keys, if any
+        """
+        global_var_keys = ConfigLoader._get_object_user_vars(global_def)
+        exp_keys = ConfigLoader._get_object_user_vars(local_def)
+        return global_var_keys & exp_keys
+
+    @staticmethod
+    def _get_object_user_vars(obj: dict):
+        return set(obj.keys()) - ConfigLoader._g_inbuilt_keywords
 
     @property
     def raw(self) -> dict:

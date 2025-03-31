@@ -29,7 +29,7 @@ High-Level Algorithm:
     For each dataset:
         For each experiment listed under the dataset:
             Look up the global experiment definition
-            Merge static params + override + param_set (local > global)
+            Merge static params + dataset-level override + entry-level override + param_set (entry > dataset > global)
             If param_set is defined:
                 Expand into all combinations (cartesian product)
             For each param combo:
@@ -40,6 +40,7 @@ High-Level Algorithm:
 
 from typing import List, Dict
 import itertools
+from config_loader import ConfigLoader
 
 class JobCreator:
     def __init__(self, validated_config: dict):
@@ -72,20 +73,30 @@ class JobCreator:
         experiments = self.config['experiments']
 
         for dataset_name, dataset_info in datasets.items():
+            ds_override = {
+                k: v for k, v in dataset_info.items()
+                if k not in ConfigLoader._g_inbuilt_keywords
+            }
+            ds_param_set = dataset_info.get("param_set")
+            
             for exp_entry in dataset_info['experiments']:
                 exp_name = exp_entry['name']
                 base_exp = experiments[exp_name]
 
+                entry_override = exp_entry.get("override", {})
+
                 param_combos = self._expand_param_set(
                     base_exp.get('param_set'),
+                    ds_param_set,
                     exp_entry.get('param_set')
                 )
 
                 for combo in param_combos:
                     params = self._resolve_params(
-                        base_exp,
-                        exp_entry.get('override', {}),
-                        combo
+                        base=base_exp,
+                        dataset_override=ds_override,
+                        entry_override=entry_override,
+                        param_combo=combo
                     )
                     job = {
                         "job_id": self._generate_job_id(dataset_name, exp_name),
@@ -99,7 +110,7 @@ class JobCreator:
                     jobs.append(job)
         return jobs
 
-    def _expand_param_set(self, global_ps: dict, local_ps: dict) -> List[dict]:
+    def _expand_param_set(self, global_ps: dict, dataset_ps: dict, entry_ps: dict) -> List[dict]:
         """
         Compute all param combinations from the appropriate param_set.
 
@@ -110,7 +121,7 @@ class JobCreator:
         Returns:
             List[dict]: list of param dictionaries
         """
-        ps = local_ps if local_ps is not None else global_ps
+        ps = entry_ps or dataset_ps or global_ps
         if not ps:
             return [{}]  # single variant: no param sweep
 
@@ -118,7 +129,7 @@ class JobCreator:
         combos = [dict(zip(keys, combo)) for combo in itertools.product(*values)]
         return combos
 
-    def _resolve_params(self, base: dict, override: dict, param_combo: dict) -> dict:
+    def _resolve_params(self, base: dict, dataset_override: dict, entry_override: dict, param_combo: dict) -> dict:
         """
         Merge static parameters with override and param_set combo.
 
@@ -132,8 +143,7 @@ class JobCreator:
         """
         reserved_keys = {'script', 'requires_output_var', 'param_set', 'description'}
         static_params = {k: v for k, v in base.items() if k not in reserved_keys}
-        merged = {**static_params, **override, **param_combo}
-        return merged
+        return {**static_params, **dataset_override, **entry_override, **param_combo}
 
     def _generate_job_id(self, dataset_name: str, experiment_name: str) -> str:
         """
