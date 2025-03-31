@@ -7,6 +7,11 @@ Created on Tuesday - September 03 2024
 Utility functions for running LRP. 
 Note this file assumes that keras-explainability/explainability is in the python path.
 
+Usage example:
+
+    lrp_config = LRPConfig.build_default_config()
+    lrp_model = LRPModelFactory(model, lrp_config, 'PatientAge', output_idx=0).build()
+
 """
 from loguru import logger
 
