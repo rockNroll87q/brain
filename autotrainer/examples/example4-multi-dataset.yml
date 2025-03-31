@@ -3,12 +3,10 @@ experiments:
     script: shared_train.py
     epochs: 25
     learning_rate: 0.5
-    requires_output_var: false
 
   specialized:
     script: special_train.py
     epochs: 10
-    requires_output_var: true
 
 datasets:
   common_set:
@@ -20,7 +18,7 @@ datasets:
     root: /data/custom
     experiments:
       - name: shared
-        param_set:
-          learning_rate: [0.1, 0.2]
+        override:
+          learning_rate: 0.01
       - name: specialized
         output_vars: [class1]

@@ -3,7 +3,6 @@ experiments:
     script: train.py
     epochs: 20
     learning_rate: 0.0005
-    requires_output_var: true
     param_set:
       finetune_depth: [1, 3, 5]
 

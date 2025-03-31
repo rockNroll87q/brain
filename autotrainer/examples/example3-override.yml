@@ -3,7 +3,6 @@ experiments:
     script: train.py
     epochs: 100
     learning_rate: 0.01
-    requires_output_var: true
     param_set:
       layers: [2, 4]
 

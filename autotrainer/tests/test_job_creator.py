@@ -25,13 +25,12 @@ class TestJobCreator(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         job = jobs[0]
         self.assertEqual(job["job_id"], "ds1_exp1_0")
-        self.assertEqual(job["params"], {"epochs": 10})
+        self.assertEqual(job["params"], {"script": "train.py", "epochs": 10})
 
     def test_global_param_set_expansion(self):
         config = {
             "experiments": {
                 "exp1": {
-                    "script": "train.py",
                     "epochs": 20,
                     "param_set": {
                         "layers": [1, 2],
@@ -62,7 +61,6 @@ class TestJobCreator(unittest.TestCase):
         config = {
             "experiments": {
                 "exp1": {
-                    "script": "train.py",
                     "epochs": 30,
                     "param_set": {"layers": [1, 2]}
                 }
@@ -81,7 +79,7 @@ class TestJobCreator(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]["params"], {"epochs": 30, "layers": 5})
 
-    def test_dataset_override_applies(self):
+    def test_experiment_override_applies(self):
         config = {
             "experiments": {
                 "exp1": {"script": "train.py", "epochs": 50, "lr": 1e-3}
@@ -97,7 +95,63 @@ class TestJobCreator(unittest.TestCase):
             }
         }
         jobs = self.load_jobs(config)
-        self.assertEqual(jobs[0]["params"], {"epochs": 50, "lr": 1e-4})
+        self.assertEqual(jobs[0]["params"], {"script": "train.py", "epochs": 50, "lr": 1e-4})
+
+    def test_dataset_override_applies(self):
+        config = {
+            "experiments": {
+                "exp1": {"script": "train.py", "epochs": 50, "lr": 1e-3}
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data",
+                    "experiments": [{
+                        "name": "exp1",
+                    }],
+                    "override": {"lr": 1e-4}
+                }
+            }
+        }
+        jobs = self.load_jobs(config)
+        self.assertEqual(jobs[0]["params"], {"script": "train.py", "epochs": 50, "lr": 1e-4})
+
+    def test_multiple_override_applies(self):
+        config = {
+            "experiments": {
+                "exp1": {"script": "train.py", "epochs": 50, "lr": 1e-3}
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data",
+                    "experiments": [{
+                        "name": "exp1",
+                        "override": {"lr": 1e-5}
+                    }],
+                    "override": {"lr": 1e-4}
+                }
+            }
+        }
+        jobs = self.load_jobs(config)
+        self.assertEqual(jobs[0]["params"], {"script": "train.py", "epochs": 50, "lr": 1e-5})
+
+    def test_hierarchy_preference(self):
+        config = {
+            "experiments": {
+                "exp1": {"script": "train.py", "epochs": 50}
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data",
+                    "experiments": [{
+                        "name": "exp1",
+                        "override": {"lr": 1e-5}
+                    }],
+                    "lr": 1e-4
+                }
+            }
+        }
+        jobs = self.load_jobs(config)
+        self.assertEqual(jobs[0]["params"], {"script": "train.py", "epochs": 50, "lr": 1e-5})
 
     def test_multiple_experiments_and_datasets(self):
         config = {
@@ -121,27 +175,6 @@ class TestJobCreator(unittest.TestCase):
         job_ids = [j["job_id"] for j in jobs]
         self.assertEqual(sorted(job_ids), ["ds1_exp1_0", "ds1_exp2_1", "ds2_exp2_2"])
 
-    def test_job_with_required_output_vars(self):
-        config = {
-            "experiments": {
-                "exp1": {
-                    "script": "train.py",
-                    "epochs": 10,
-                    "requires_output_var": True
-                }
-            },
-            "datasets": {
-                "ds1": {
-                    "root": "/data",
-                    "experiments": [{
-                        "name": "exp1",
-                        "output_vars": ["label1", "label2"]
-                    }]
-                }
-            }
-        }
-        jobs = self.load_jobs(config)
-        self.assertEqual(jobs[0]["output_vars"], ["label1", "label2"])
 
 if __name__ == "__main__":
     unittest.main()

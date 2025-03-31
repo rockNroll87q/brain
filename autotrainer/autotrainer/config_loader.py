@@ -18,10 +18,8 @@ Structure:
 1. experiments:
     A dictionary of globally defined experiment templates.
     Each experiment includes:
-        - script (str): path to training script
         - static parameters (epochs, lr, etc.)
         - param_set (optional): keys with lists of values to sweep
-        - requires_output_var (bool): whether dataset must specify output_vars
 
     Example:
     experiments:
@@ -30,14 +28,12 @@ Structure:
         epochs: 50
         learning_rate: 1e-5
         finetune_all_layers: true
-        requires_output_var: true
 
 2. datasets:
     Dataset-specific job instructions. Each dataset includes:
         - root (str): base path to dataset
         - experiments: list of experiments to run
             - name: experiment key from global section
-            - output_vars (optional): list, required if experiment requires them
             - override (optional): static parameter overrides
             - param_set (optional): replaces global param_set
 
@@ -63,7 +59,6 @@ Precedence:
 Validation Rules:
     - All experiment names in datasets must match defined experiments
     - param_set keys must not also appear as static params in the same block
-    - output_vars must be provided if required by experiment
 
 -------------------------------------
 Overview of this File (How to Use)
@@ -85,8 +80,8 @@ class ConfigValidationError(Exception):
 
 class ConfigLoader:
     # In our overlap and param checks, these are the built-in keywords which cannot be used as user-defined variables.
-    _g_inbuilt_keywords = {"param_set", "script", "requires_output_var", \
-                           "description", "name", "output_vars", "override", "experiments", "root"}
+    _g_inbuilt_keywords = {"param_set",\
+                            "name", "output_vars", "override", "experiments", "root"}
 
 
     def __init__(self, config_source: Union[str, Path, Dict]):
@@ -183,11 +178,7 @@ class ConfigLoader:
                 if name not in experiments:
                     raise ConfigValidationError(f"Dataset '{dataset_name}' references undefined experiment '{name}'.")
                 global_exp = experiments[name]
-                if global_exp.get("requires_output_var", False):
-                    if "output_vars" not in exp_entry:
-                        raise ConfigValidationError(
-                            f"Experiment '{name}' in dataset '{dataset_name}' requires 'output_vars' to be specified."
-                        )
+
                 if "param_set" in exp_entry:
                     self._check_param_conflicts(name, exp_entry)
 
@@ -199,13 +190,19 @@ class ConfigLoader:
                 conflicts = self._check_user_var_conflicts(global_exp, exp_entry)
                 if conflicts:
                     raise ConfigValidationError(f"In {dataset_name}:{name}, user-provided variables [{', '.join(conflicts)}] \
-            conflict with those given in the experiment definition. Use override if required.")
+conflict with those given in the experiment definition. Use override if required.")
                 
                 # Check the user variables of the broader dataset def against the global experiment def
                 conflicts = self._check_user_var_conflicts(global_exp, dataset_def)
                 if conflicts:
                     raise ConfigValidationError(f"In {dataset_name}, user-provided variables [{', '.join(conflicts)}] \
-            conflict with those given in the experiment definition '{name}'. Use override if required.")
+conflict with those given in the experiment definition '{name}'. Use override if required.")
+                
+                # Check the user variables of the dataset-experiment def against the dataset def
+                conflicts = self._check_user_var_conflicts(dataset_def, exp_entry)
+                if conflicts:
+                    raise ConfigValidationError(f"In {dataset_name}:{name}, user-provided variables [{', '.join(conflicts)}] \
+conflict with those given in the dataset definition '{dataset_name}'. Use override if required.")
 
         return config
     
@@ -213,12 +210,8 @@ class ConfigLoader:
         for exp_name, exp_def in experiments.items():
             if not isinstance(exp_def, dict):
                 raise ConfigValidationError(f"Experiment '{exp_name}' must be a dictionary.")
-            if "script" not in exp_def:
-                raise ConfigValidationError(f"Experiment '{exp_name}' is missing required field: 'script'.")
             if "param_set" in exp_def:
                 self._check_param_conflicts(exp_name, exp_def)
-
-        
 
     def _check_param_conflicts(self, scope_name: str, exp_def: dict):
         """

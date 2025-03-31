@@ -88,5 +88,80 @@ class TestConfigLoader(unittest.TestCase):
             loader.load()
         self.assertIn("appear in both static fields and param_set", str(cm.exception))
 
+    def test_no_override_experiment(self):
+        config = {
+            "experiments": {
+                "exp1": {
+                    "script": "train.py",
+                    "epochs": 50
+                }
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data",
+                    "experiments": [
+                        {
+                            "name": "exp1",
+                            "epochs": 20
+                        }
+                    ]
+                }
+            }
+        }
+        loader = ConfigLoader(config)
+        with self.assertRaises(ConfigValidationError) as cm:
+            loader.load()
+        self.assertIn("conflict with those given in the experiment definition", str(cm.exception))
+
+    def test_no_override_dataset(self):
+        config = {
+            "experiments": {
+                "exp1": {
+                    "script": "train.py",
+                    "epochs": 50
+                }
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data",
+                    "experiments": [
+                        {
+                            "name": "exp1",
+                        }
+                    ],
+                    "epochs": 20
+                }
+            }
+        }
+        loader = ConfigLoader(config)
+        with self.assertRaises(ConfigValidationError) as cm:
+            loader.load()
+        self.assertIn("conflict with those given in the experiment definition", str(cm.exception))
+
+    def test_no_override_dataset_experiment(self):
+        config = {
+            "experiments": {
+                "exp1": {
+                    "script": "train.py",
+                }
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data",
+                    "experiments": [
+                        {
+                            "name": "exp1",
+                            "epochs": 50
+                        }
+                    ],
+                    "epochs": 20
+                }
+            }
+        }
+        loader = ConfigLoader(config)
+        with self.assertRaises(ConfigValidationError) as cm:
+            loader.load()
+        self.assertIn("conflict with those given in the dataset definition", str(cm.exception))
+
 if __name__ == "__main__":
     unittest.main()
