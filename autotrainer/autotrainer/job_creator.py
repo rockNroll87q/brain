@@ -21,6 +21,8 @@ Job Output Format:
         "dataset_name": str,     # name of dataset
         "params": dict,          # fully-resolved parameter dictionary
         "data_root": str         # dataset root path
+        "dataset_description":   # Carried from the dataset objects' 'description', if given. Else, None
+        "experiment_description":# Carried from the experiment objects' 'description', if given. Else, None
     }
 
 High-Level Algorithm:
@@ -114,7 +116,9 @@ class JobCreator:
                         "experiment_name": exp_name,
                         "dataset_name": dataset_name,
                         "params": params,
-                        "data_root": dataset_info['root']
+                        "data_root": dataset_info['root'],
+                        "experiment_description": base_exp['description'] if 'description' in base_exp else None,
+                        'dataset_description': dataset_info['description'] if 'description' in dataset_info else None
                     }
                     jobs.append(job)
         return jobs

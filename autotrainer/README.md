@@ -42,7 +42,6 @@ experiments:
     script: train.py
     epochs: 50
     learning_rate: 1e-4
-    requires_output_var: true
 
 datasets:
   my_dataset:
@@ -83,10 +82,10 @@ for job in jobs:
 
 Explore the `examples/` directory for working YAML templates:
 
-- `basic.yml`: One experiment on one dataset
-- `param_sweep.yml`: Parameterized experiment with a `param_set`
-- `overrides.yml`: Per-dataset overrides of experiment parameters
-- `multi_dataset.yml`: Multiple datasets sharing and customizing experiments
+- `example1-basic.yml`: One experiment on one dataset
+- `example2-sweep.yml`: Parameterized experiment with a `param_set`
+- `example3-override.yml`: Per-dataset overrides of experiment parameters
+- `example4-multi-dataset.yml`: Multiple datasets sharing and customizing experiments
 
 ---
 

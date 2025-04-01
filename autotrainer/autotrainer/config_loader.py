@@ -20,6 +20,7 @@ Structure:
     Each experiment includes:
         - static parameters (epochs, lr, etc.)
         - param_set (optional): keys with lists of values to sweep
+        - description (optional): string to describe this experiment
 
     Example:
     experiments:
@@ -32,10 +33,12 @@ Structure:
 2. datasets:
     Dataset-specific job instructions. Each dataset includes:
         - root (str): base path to dataset
+        - description (str) (optional): string to describe this dataset
         - experiments: list of experiments to run
             - name: experiment key from global section
             - override (optional): static parameter overrides
             - param_set (optional): replaces global param_set
+            - description (optional): string to describe this dataset
 
     Example:
     datasets:
@@ -80,7 +83,7 @@ class ConfigValidationError(Exception):
 
 class ConfigLoader:
     # In our overlap and param checks, these are the built-in keywords which cannot be used as user-defined variables.
-    _g_inbuilt_keywords = {"param_set",\
+    _g_inbuilt_keywords = {"param_set", "description", \
                             "name", "output_vars", "override", "experiments", "root"}
 
 

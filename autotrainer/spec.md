@@ -17,7 +17,6 @@ Define a set of deep learning experiments and apply them across multiple dataset
 A dictionary where keys are **experiment names**, and values define:
 - A training script
 - Fixed parameters
-- Whether output variables are required
 - Optional parameter sweeps
 
 ```yaml
@@ -28,13 +27,11 @@ experiments:
     epochs: 50
     learning_rate: 1e-5
     finetune_all_layers: true
-    requires_output_var: true
 
   depth_sweep:
     script: train.py
     epochs: 40
     learning_rate: 1e-4
-    requires_output_var: true
     param_set:
       finetune_depth: [1, 3, 5, 10]
 ```
@@ -75,7 +72,6 @@ datasets:
 
 #### ✅ Rules:
 - Each experiment entry **must** include a `name` matching a global experiment
-- `output_vars` is required if `requires_output_var` is true in the global experiment
 - `override` allows static parameter overrides per run
 - `param_set` **replaces** global `param_set` if defined locally
 
@@ -83,12 +79,12 @@ datasets:
 
 ## 🧠 Resolution and Precedence Logic
 
-| Level             | Behavior                                                              |
-|------------------|-----------------------------------------------------------------------|
-| `override`        | Takes absolute precedence over everything                             |
-| Local `param_set` | Replaces global `param_set` entirely                                  |
-| Global `param_set`| Applied only if local `param_set` is not present                      |
-| Static params     | Used unless overridden or replaced by param_set                       |
+| Level               | Behavior                                                              |
+|---------------------|-----------------------------------------------------------------------|
+| `override`          | Takes absolute precedence over everything                             |
+| Local `param_set`   | Replaces global `param_set` entirely                                  |
+| Global `param_set`  | Applied only if local `param_set` is not present                      |
+| Global Static params| Used unless overridden or replaced by param_set                       |
 
 ---
 
@@ -96,8 +92,7 @@ datasets:
 
 1. **Experiment names must match between global and dataset sections**
 2. **No duplication of parameter keys between static fields and `param_set` in the same scope**
-3. **If `requires_output_var: true`, then `output_vars` must be supplied**
-4. **Each param sweep is treated as a cartesian product unless explicitly changed (future support)**
+3. **Each param sweep is treated as a cartesian product unless explicitly changed (future support)**
 
 ---
 
@@ -110,13 +105,11 @@ experiments:
     epochs: 50
     learning_rate: 1e-5
     finetune_all_layers: true
-    requires_output_var: true
 
   depth_sweep:
     script: train.py
     epochs: 40
     learning_rate: 1e-4
-    requires_output_var: true
     param_set:
       finetune_depth: [1, 3, 5, 10]
 
