@@ -2,63 +2,63 @@ import unittest
 from autotrainer import ConfigLoader, ConfigValidationError
 
 import unittest
-from autotrainer import _resolve_experiment_inheritance, InheritanceError
+from autotrainer import _resolve_task_inheritance, InheritanceError
 
 class TestExperimentInheritance(unittest.TestCase):
 
     def test_single_inheritance(self):
-        experiments = {
+        tasks = {
             "base": {"epochs": 10, "learning_rate": 0.1},
             "child": {"extends": "base", "learning_rate": 0.01}
         }
-        resolved = _resolve_experiment_inheritance(experiments)
+        resolved = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["child"]["epochs"], 10)
         self.assertEqual(resolved["child"]["learning_rate"], 0.01)
 
     def test_multi_level_inheritance(self):
-        experiments = {
+        tasks = {
             "base": {"epochs": 10, "lr": 0.1},
             "mid": {"extends": "base", "optimizer": "adam"},
             "final": {"extends": "mid", "lr": 0.001}
         }
-        resolved = _resolve_experiment_inheritance(experiments)
+        resolved = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["final"]["epochs"], 10)
         self.assertEqual(resolved["final"]["optimizer"], "adam")
         self.assertEqual(resolved["final"]["lr"], 0.001)
 
     def test_no_inheritance(self):
-        experiments = {
+        tasks = {
             "plain": {"epochs": 20, "lr": 0.2}
         }
-        resolved = _resolve_experiment_inheritance(experiments)
+        resolved = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["plain"]["epochs"], 20)
         self.assertEqual(resolved["plain"]["lr"], 0.2)
 
     def test_undefined_base(self):
-        experiments = {
+        tasks = {
             "child": {"extends": "nonexistent", "epochs": 5}
         }
         with self.assertRaises(InheritanceError) as ctx:
-            _resolve_experiment_inheritance(experiments)
+            _resolve_task_inheritance(tasks)
         self.assertIn("not defined", str(ctx.exception))
 
     def test_cycle_detection(self):
-        experiments = {
+        tasks = {
             "a": {"extends": "b", "x": 1},
             "b": {"extends": "c", "y": 2},
             "c": {"extends": "a", "z": 3}
         }
         with self.assertRaises(InheritanceError) as ctx:
-            _resolve_experiment_inheritance(experiments)
+            _resolve_task_inheritance(tasks)
         self.assertIn("cycle detected", str(ctx.exception))
 
     def test_deep_override(self):
-        experiments = {
+        tasks = {
             "base": {"x": 1, "y": 2, "z": 3},
             "child": {"extends": "base", "y": 20, "z": 30},
             "grandchild": {"extends": "child", "z": 300}
         }
-        resolved = _resolve_experiment_inheritance(experiments)
+        resolved = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["grandchild"]["x"], 1)
         self.assertEqual(resolved["grandchild"]["y"], 20)
         self.assertEqual(resolved["grandchild"]["z"], 300)
@@ -67,7 +67,7 @@ class TestConfigLoader(unittest.TestCase):
 
     def test_valid_minimal_config(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "script": "train.py"
                 }
@@ -75,7 +75,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [
+                    "tasks": [
                         {"name": "exp1"}
                     ]
                 }
@@ -85,19 +85,19 @@ class TestConfigLoader(unittest.TestCase):
         validated = loader.load()
         self.assertEqual(validated["datasets"]["ds1"]["root"], "/data")
 
-    def test_missing_experiments_key(self):
+    def test_missing_tasks_key(self):
         config = {"datasets": {}}
         loader = ConfigLoader(config)
         with self.assertRaises(ConfigValidationError) as cm:
             loader.load()
-        self.assertIn("'experiments' section", str(cm.exception))
+        self.assertIn("'tasks' section", str(cm.exception))
 
     def test_missing_dataset_root(self):
         config = {
-            "experiments": {"exp1": {"script": "train.py"}},
+            "tasks": {"exp1": {"script": "train.py"}},
             "datasets": {
                 "ds1": {
-                    "experiments": [
+                    "tasks": [
                         {"name": "exp1"}
                     ]
                 }
@@ -108,13 +108,13 @@ class TestConfigLoader(unittest.TestCase):
             loader.load()
         self.assertIn("missing required field: 'root'", str(cm.exception))
 
-    def test_undefined_experiment_reference(self):
+    def test_undefined_task_reference(self):
         config = {
-            "experiments": {"exp1": {"script": "train.py"}},
+            "tasks": {"exp1": {"script": "train.py"}},
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [
+                    "tasks": [
                         {"name": "exp2"}
                     ]
                 }
@@ -123,11 +123,11 @@ class TestConfigLoader(unittest.TestCase):
         loader = ConfigLoader(config)
         with self.assertRaises(ConfigValidationError) as cm:
             loader.load()
-        self.assertIn("references undefined experiment", str(cm.exception))
+        self.assertIn("references undefined task", str(cm.exception))
 
     def test_param_set_conflict(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "script": "train.py",
                     "epochs": 10,
@@ -139,7 +139,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [
+                    "tasks": [
                         {"name": "exp1"}
                     ]
                 }
@@ -150,9 +150,9 @@ class TestConfigLoader(unittest.TestCase):
             loader.load()
         self.assertIn("appear in both static fields and param_set", str(cm.exception))
 
-    def test_no_override_experiment(self):
+    def test_no_override_task(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "script": "train.py",
                     "epochs": 50
@@ -161,7 +161,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [
+                    "tasks": [
                         {
                             "name": "exp1",
                             "epochs": 20
@@ -173,11 +173,11 @@ class TestConfigLoader(unittest.TestCase):
         loader = ConfigLoader(config)
         with self.assertRaises(ConfigValidationError) as cm:
             loader.load()
-        self.assertIn("conflict with those given in the experiment definition", str(cm.exception))
+        self.assertIn("conflict with those given in the task definition", str(cm.exception))
 
     def test_no_override_dataset(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "script": "train.py",
                     "epochs": 50
@@ -186,7 +186,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [
+                    "tasks": [
                         {
                             "name": "exp1",
                         }
@@ -198,11 +198,11 @@ class TestConfigLoader(unittest.TestCase):
         loader = ConfigLoader(config)
         with self.assertRaises(ConfigValidationError) as cm:
             loader.load()
-        self.assertIn("conflict with those given in the experiment definition", str(cm.exception))
+        self.assertIn("conflict with those given in the task definition", str(cm.exception))
 
-    def test_no_override_dataset_experiment(self):
+    def test_no_override_dataset_task(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "script": "train.py",
                 }
@@ -210,7 +210,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [
+                    "tasks": [
                         {
                             "name": "exp1",
                             "epochs": 50
@@ -227,7 +227,7 @@ class TestConfigLoader(unittest.TestCase):
 
     def test_inheritance_resolves_correctly(self):
         config_dict = {
-            "experiments": {
+            "tasks": {
                 "base": {
                     "script": "train.py",
                     "epochs": 20,
@@ -241,7 +241,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data/ds1",
-                    "experiments": [
+                    "tasks": [
                         {"name": "child"}
                     ]
                 }
@@ -250,7 +250,7 @@ class TestConfigLoader(unittest.TestCase):
 
         loader = ConfigLoader(config_dict)
         validated = loader.load()
-        child_exp = validated["experiments"]["child"]
+        child_exp = validated["tasks"]["child"]
 
         self.assertEqual(child_exp["script"], "train.py")
         self.assertEqual(child_exp["epochs"], 20)
@@ -258,7 +258,7 @@ class TestConfigLoader(unittest.TestCase):
 
     def test_inheritance_missing_parent_raises(self):
         config_dict = {
-            "experiments": {
+            "tasks": {
                 "child": {
                     "extends": "missing_base",
                     "epochs": 10
@@ -267,7 +267,7 @@ class TestConfigLoader(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data/ds1",
-                    "experiments": [
+                    "tasks": [
                         {"name": "child"}
                     ]
                 }

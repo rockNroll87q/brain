@@ -1,4 +1,4 @@
-experiments:
+tasks:
   baseline:
     script: train.py
     epochs: 50
@@ -7,5 +7,5 @@ experiments:
 datasets:
   dataset_simple:
     root: /data/simple
-    experiments:
+    tasks:
       - name: baseline

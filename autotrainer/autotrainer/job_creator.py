@@ -9,26 +9,26 @@ JobCreator - Job Expansion Engine
 ---------------------------------
 
 Purpose:
-    Given a validated experiment config (from ConfigLoader), expand all experiment + dataset combinations
+    Given a validated task config (from ConfigLoader), expand all task + dataset combinations
     into fully-resolved, atomic job specifications ready for execution or scheduling.
 
 Job Output Format:
     Each job is represented as a dictionary with the following fields:
 
     {
-        "job_id": str,            # unique string, e.g., dataset_experiment_idx
-        "experiment_name": str,  # name of experiment (from global definition)
+        "job_id": str,            # unique string, e.g., dataset_task_idx
+        "task_name": str,  # name of task (from global definition)
         "dataset_name": str,     # name of dataset
         "params": dict,          # fully-resolved parameter dictionary
         "data_root": str         # dataset root path
         "dataset_description":   # Carried from the dataset objects' 'description', if given. Else, ""
-        "experiment_description":# Carried from the experiment objects' 'description', if given. Else, ""
+        "task_description":# Carried from the task objects' 'description', if given. Else, ""
     }
 
 High-Level Algorithm:
     For each dataset:
-        For each experiment listed under the dataset:
-            Look up the global experiment definition
+        For each task listed under the dataset:
+            Look up the global task definition
             Merge static params + dataset-level override + entry-level override + param_set (entry > dataset > global)
             If param_set is defined:
                 Expand into all combinations (cartesian product)
@@ -68,11 +68,11 @@ class JobCreator:
 
     def _expand_jobs(self) -> List[dict]:
         """
-        Internal function that generates all job dicts by resolving datasets and experiments.
+        Internal function that generates all job dicts by resolving datasets and tasks.
         """
         jobs = []
         datasets = self.config['datasets']
-        experiments = self.config['experiments']
+        tasks = self.config['tasks']
 
         for dataset_name, dataset_info in datasets.items():
             ds_override = dataset_info.get('override', {})
@@ -82,9 +82,9 @@ class JobCreator:
                 if k not in ConfigLoader._g_inbuilt_keywords
             }
             
-            for exp_entry in dataset_info['experiments']:
+            for exp_entry in dataset_info['tasks']:
                 exp_name = exp_entry['name']
-                base_exp = experiments[exp_name]
+                base_exp = tasks[exp_name]
 
                 entry_override = exp_entry.get("override", {})
                 entry_param_set = exp_entry.get('param_set')
@@ -113,11 +113,11 @@ class JobCreator:
 
                     job = {
                         "job_id": self._generate_job_id(dataset_name, exp_name),
-                        "experiment_name": exp_name,
+                        "task_name": exp_name,
                         "dataset_name": dataset_name,
                         "params": params,
                         "data_root": dataset_info['root'],
-                        "experiment_description": base_exp['description'] if 'description' in base_exp else "",
+                        "task_description": base_exp['description'] if 'description' in base_exp else "",
                         'dataset_description': dataset_info['description'] if 'description' in dataset_info else ""
                     }
                     jobs.append(job)
@@ -128,9 +128,9 @@ class JobCreator:
         Compute all param combinations from the appropriate param_set.
 
         Args:
-            global_ps (dict): global param_set from experiment definition
+            global_ps (dict): global param_set from task definition
             dataset_ps (dict): dataset-level param_set
-            entry_ps (dict): param_set from dataset experiment entry
+            entry_ps (dict): param_set from dataset task entry
 
         Returns:
             List[dict]: list of param dictionaries
@@ -153,7 +153,7 @@ class JobCreator:
         Merge static parameters with overrides and param_set combo.
 
         Args:
-            base (dict): base experiment definition
+            base (dict): base task definition
             dataset_override (dict): dataset-level overrides
             entry_override (dict): entry-level overrides
             dataset_static (dict): dataset-level static params
@@ -174,10 +174,10 @@ class JobCreator:
             **param_combo
         }
 
-    def _generate_job_id(self, dataset_name: str, experiment_name: str) -> str:
+    def _generate_job_id(self, dataset_name: str, task_name: str) -> str:
         """
         Generate a unique job identifier.
         """
-        job_id = f"{dataset_name}_{experiment_name}_{self.job_counter}"
+        job_id = f"{dataset_name}_{task_name}_{self.job_counter}"
         self.job_counter += 1
         return job_id

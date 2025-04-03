@@ -5,32 +5,32 @@ Created on Friday, 28 March 2025.
 * Austin Dibble, University of Glasgow
 
 -------------------------------------
-YAML Experiment Protocol Specification in Brief
+YAML Task Protocol Specification in Brief
 -------------------------------------
 
 Purpose:
-    Define a structured YAML format to run deep learning experiments across multiple datasets,
-    allowing parameterized variants, per-dataset overrides, and reusable experiment definitions
+    Define a structured YAML format to run deep learning tasks across multiple datasets,
+    allowing parameterized variants, per-dataset overrides, and reusable task definitions
     via inheritance.
 
 Structure:
 
-1. experiments:
-    A dictionary of globally defined experiment templates.
-    Each experiment includes:
+1. tasks:
+    A dictionary of globally defined task templates.
+    Each task includes:
         - static parameters (epochs, lr, etc.)
         - param_set (optional): keys with lists of values to sweep
-        - extends (optional): inherit fields from another experiment
-        - description (optional): string to describe this experiment
+        - extends (optional): inherit fields from another task
+        - description (optional): string to describe this task
 
     Inheritance:
-        - An experiment may extend another by key name
+        - An task may extend another by key name
         - Inherited fields are merged, with child fields overriding parent fields
         - Inheritance is resolved before validation
         - Cycles or undefined parents raise validation errors
 
     Example:
-    experiments:
+    tasks:
       base_finetune:
         script: train.py
         epochs: 50
@@ -44,11 +44,11 @@ Structure:
     Dataset-specific job instructions. Each dataset includes:
         - root (str): base path to dataset
         - description (str) (optional): string to describe this dataset
-        - override (optional): dataset-wide param override for all experiments
-        - param_set (optional): dataset-wide param sweep for all experiments
+        - override (optional): dataset-wide param override for all tasks
+        - param_set (optional): dataset-wide param sweep for all tasks
         - other static params may be defined here
-        - experiments: list of experiments to run
-            - name: experiment key from global section
+        - tasks: list of tasks to run
+            - name: task key from global section
             - override (optional): static parameter overrides
             - param_set (optional): replaces higher-level param_set
             - description (optional): string to describe this specific run
@@ -60,7 +60,7 @@ Structure:
         learning_rate: 0.001
         param_set:
           dropout: [0.1, 0.2]
-        experiments:
+        tasks:
           - name: finetune_all
             output_vars: [label1]
           - name: finetune_all
@@ -76,9 +76,9 @@ Precedence:
     - Conflicts between static and param_set keys in the same scope raise validation errors
 
 Validation Rules:
-    - All experiment names in datasets must match defined experiments
+    - All task names in datasets must match defined tasks
     - param_set keys must not also appear as static params in the same block
-    - experiment inheritance trees must be acyclic and refer only to defined experiments
+    - task inheritance trees must be acyclic and refer only to defined tasks
 
 
 -------------------------------------
@@ -101,12 +101,12 @@ class InheritanceError(Exception):
     """Raised when inheritance resolution fails (e.g. due to cycles or missing base)."""
     pass
 
-def _resolve_experiment_inheritance(experiments: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """
-    Resolves inheritance for experiment definitions.
+    Resolves inheritance for task definitions.
     
     Args:
-        experiments (dict): Raw experiments dictionary from config, possibly with 'extends' keys.
+        tasks (dict): Raw tasks dictionary from config, possibly with 'extends' keys.
 
     Returns:
         dict: A new dict with inheritance fully resolved and all fields flattened.
@@ -121,13 +121,13 @@ def _resolve_experiment_inheritance(experiments: Dict[str, Dict[str, Any]]) -> D
         if key in resolved:
             return resolved[key]
 
-        if key not in experiments:
+        if key not in tasks:
             raise InheritanceError(f"Experiment '{key}' is not defined.")
 
         if key in trail:
             raise InheritanceError(f"Inheritance cycle detected: {' -> '.join(list(trail) + [key])}")
 
-        exp = experiments[key]
+        exp = tasks[key]
         base_key = exp.get("extends")
 
         if not base_key:
@@ -146,13 +146,13 @@ def _resolve_experiment_inheritance(experiments: Dict[str, Dict[str, Any]]) -> D
 
         return merged
 
-    for key in experiments:
+    for key in tasks:
         resolve(key, set())
 
     # # Clean up, get rid of inheritance keys
-    # for key in experiments:
-    #     if "extends" in experiments[key]:
-    #         del experiments[key]["extends"]
+    # for key in tasks:
+    #     if "extends" in tasks[key]:
+    #         del tasks[key]["extends"]
 
     return resolved
 
@@ -163,7 +163,7 @@ class ConfigValidationError(Exception):
 class ConfigLoader:
     # In our overlap and param checks, these are the built-in keywords which cannot be used as user-defined variables.
     _g_inbuilt_keywords = {"param_set", "description", "extends", \
-                            "name", "override", "experiments", "root"}
+                            "name", "override", "tasks", "root"}
 
 
     def __init__(self, config_source: Union[str, Path, Dict]):
@@ -225,27 +225,27 @@ class ConfigLoader:
         if not isinstance(config, dict):
             raise ConfigValidationError("Config must be a dictionary.")
 
-        experiments = config.get("experiments")
+        tasks = config.get("tasks")
         datasets = config.get("datasets")
 
-        if not isinstance(experiments, dict):
-            raise ConfigValidationError("Missing or invalid 'experiments' section. Must be a dictionary.")
+        if not isinstance(tasks, dict):
+            raise ConfigValidationError("Missing or invalid 'tasks' section. Must be a dictionary.")
 
         if not isinstance(datasets, dict):
             raise ConfigValidationError("Missing or invalid 'datasets' section. Must be a dictionary.")
 
-        experiments = _resolve_experiment_inheritance(experiments)
-        config["experiments"] = experiments # Update config object
+        tasks = _resolve_task_inheritance(tasks)
+        config["tasks"] = tasks # Update config object
 
-        self._validate_experiments(experiments)
+        self._validate_tasks(tasks)
 
         for dataset_name, dataset_def in datasets.items():
             if not isinstance(dataset_def, dict):
                 raise ConfigValidationError(f"Dataset '{dataset_name}' must be a dictionary.")
             if "root" not in dataset_def:
                 raise ConfigValidationError(f"Dataset '{dataset_name}' is missing required field: 'root'.")
-            if "experiments" not in dataset_def or not isinstance(dataset_def["experiments"], list):
-                raise ConfigValidationError(f"Dataset '{dataset_name}' must have a list under 'experiments'.")
+            if "tasks" not in dataset_def or not isinstance(dataset_def["tasks"], list):
+                raise ConfigValidationError(f"Dataset '{dataset_name}' must have a list under 'tasks'.")
 
             # Check for param_set conflicts at the dataset level
             if "param_set" in dataset_def:
@@ -256,13 +256,13 @@ class ConfigLoader:
             if not isinstance(dataset_override, dict):
                 raise ConfigValidationError(f"In '{dataset_name}', 'override' must be a dictionary.")
 
-            for i, exp_entry in enumerate(dataset_def["experiments"]):
+            for i, exp_entry in enumerate(dataset_def["tasks"]):
                 if not isinstance(exp_entry, dict):
                     raise ConfigValidationError(f"Experiment entry #{i} in dataset '{dataset_name}' must be a dictionary.")
                 name = exp_entry.get("name")
-                if name not in experiments:
-                    raise ConfigValidationError(f"Dataset '{dataset_name}' references undefined experiment '{name}'.")
-                global_exp = experiments[name]
+                if name not in tasks:
+                    raise ConfigValidationError(f"Dataset '{dataset_name}' references undefined task '{name}'.")
+                global_exp = tasks[name]
 
                 if "param_set" in exp_entry:
                     self._check_param_conflicts(name, exp_entry)
@@ -271,19 +271,19 @@ class ConfigLoader:
                 if not isinstance(exp_override, dict):
                     raise ConfigValidationError(f"In '{dataset_name}:{name}', 'override' must be a dictionary.")
                 
-                # Check user variables of this experiment listing under the dataset against the global experiment def
+                # Check user variables of this task listing under the dataset against the global task def
                 conflicts = self._check_user_var_conflicts(global_exp, exp_entry)
                 if conflicts:
                     raise ConfigValidationError(f"In {dataset_name}:{name}, user-provided variables [{', '.join(conflicts)}] \
-conflict with those given in the experiment definition. Use override if required.")
+conflict with those given in the task definition. Use override if required.")
                 
-                # Check the user variables of the broader dataset def against the global experiment def
+                # Check the user variables of the broader dataset def against the global task def
                 conflicts = self._check_user_var_conflicts(global_exp, dataset_def)
                 if conflicts:
                     raise ConfigValidationError(f"In {dataset_name}, user-provided variables [{', '.join(conflicts)}] \
-conflict with those given in the experiment definition '{name}'. Use override if required.")
+conflict with those given in the task definition '{name}'. Use override if required.")
                 
-                # Check the user variables of the dataset-experiment def against the dataset def
+                # Check the user variables of the dataset-task def against the dataset def
                 conflicts = self._check_user_var_conflicts(dataset_def, exp_entry)
                 if conflicts:
                     raise ConfigValidationError(f"In {dataset_name}:{name}, user-provided variables [{', '.join(conflicts)}] \
@@ -291,8 +291,8 @@ conflict with those given in the dataset definition '{dataset_name}'. Use overri
 
         return config
     
-    def _validate_experiments(self, experiments:dict):
-        for exp_name, exp_def in experiments.items():
+    def _validate_tasks(self, tasks:dict):
+        for exp_name, exp_def in tasks.items():
             if not isinstance(exp_def, dict):
                 raise ConfigValidationError(f"Experiment '{exp_name}' must be a dictionary.")
             if "param_set" in exp_def:
@@ -303,7 +303,7 @@ conflict with those given in the dataset definition '{dataset_name}'. Use overri
         Ensure no overlap between static params and param_set keys.
 
         Args:
-            scope_name (str): Name of the experiment or dataset+experiment scope
+            scope_name (str): Name of the task or dataset+task scope
             exp_def (dict): The definition containing static keys and param_set
 
         Raises:
@@ -321,12 +321,12 @@ conflict with those given in the dataset definition '{dataset_name}'. Use overri
     
     def _check_user_var_conflicts(self, global_def:dict, local_def:dict):
         """
-        Get the overlapping variables between some user definition (like in a dataset definition, or dataset-experiment)
-        and the more global-level variables from the global experiment definition.
+        Get the overlapping variables between some user definition (like in a dataset definition, or dataset-task)
+        and the more global-level variables from the global task definition.
 
         Args:
-            global_def (dict): Object from the experiment's definition
-            local_def (dict): dataset or dataset-experiment object.
+            global_def (dict): Object from the task's definition
+            local_def (dict): dataset or dataset-task object.
 
         Returns:
             a set of overlapping keys, if any

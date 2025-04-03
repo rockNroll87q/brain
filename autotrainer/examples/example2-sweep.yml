@@ -1,4 +1,4 @@
-experiments:
+tasks:
   finetune:
     script: train.py
     epochs: 20
@@ -9,6 +9,6 @@ experiments:
 datasets:
   dataset_with_labels:
     root: /data/with_labels
-    experiments:
+    tasks:
       - name: finetune
         output_vars: [label_a, label_b]

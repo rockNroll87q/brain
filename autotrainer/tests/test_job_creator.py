@@ -11,13 +11,13 @@ class TestJobCreator(unittest.TestCase):
 
     def test_single_job_no_param_set(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {"script": "train.py", "epochs": 10}
             },
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{"name": "exp1"}]
+                    "tasks": [{"name": "exp1"}]
                 }
             }
         }
@@ -29,7 +29,7 @@ class TestJobCreator(unittest.TestCase):
 
     def test_global_param_set_expansion(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "epochs": 20,
                     "param_set": {
@@ -41,7 +41,7 @@ class TestJobCreator(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{"name": "exp1"}]
+                    "tasks": [{"name": "exp1"}]
                 }
             }
         }
@@ -59,7 +59,7 @@ class TestJobCreator(unittest.TestCase):
 
     def test_local_param_set_overrides_global(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {
                     "epochs": 30,
                     "param_set": {"layers": [1, 2]}
@@ -68,7 +68,7 @@ class TestJobCreator(unittest.TestCase):
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{
+                    "tasks": [{
                         "name": "exp1",
                         "param_set": {"layers": [5]}
                     }]
@@ -79,15 +79,15 @@ class TestJobCreator(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]["params"], {"epochs": 30, "layers": 5})
 
-    def test_experiment_override_applies(self):
+    def test_task_override_applies(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {"script": "train.py", "epochs": 50, "lr": 1e-3}
             },
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{
+                    "tasks": [{
                         "name": "exp1",
                         "override": {"lr": 1e-4}
                     }]
@@ -99,13 +99,13 @@ class TestJobCreator(unittest.TestCase):
 
     def test_dataset_override_applies(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {"script": "train.py", "epochs": 50, "lr": 1e-3}
             },
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{
+                    "tasks": [{
                         "name": "exp1",
                     }],
                     "override": {"lr": 1e-4}
@@ -117,13 +117,13 @@ class TestJobCreator(unittest.TestCase):
 
     def test_multiple_override_applies(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {"script": "train.py", "epochs": 50, "lr": 1e-3}
             },
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{
+                    "tasks": [{
                         "name": "exp1",
                         "override": {"lr": 1e-5}
                     }],
@@ -136,13 +136,13 @@ class TestJobCreator(unittest.TestCase):
 
     def test_hierarchy_preference(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {"script": "train.py", "epochs": 50}
             },
             "datasets": {
                 "ds1": {
                     "root": "/data",
-                    "experiments": [{
+                    "tasks": [{
                         "name": "exp1",
                         "override": {"lr": 1e-5}
                     }],
@@ -153,20 +153,20 @@ class TestJobCreator(unittest.TestCase):
         jobs = self.load_jobs(config)
         self.assertEqual(jobs[0]["params"], {"script": "train.py", "epochs": 50, "lr": 1e-5})
 
-    def test_multiple_experiments_and_datasets(self):
+    def test_multiple_tasks_and_datasets(self):
         config = {
-            "experiments": {
+            "tasks": {
                 "exp1": {"script": "a.py", "epochs": 10},
                 "exp2": {"script": "b.py", "epochs": 20}
             },
             "datasets": {
                 "ds1": {
                     "root": "/a",
-                    "experiments": [{"name": "exp1"}, {"name": "exp2"}]
+                    "tasks": [{"name": "exp1"}, {"name": "exp2"}]
                 },
                 "ds2": {
                     "root": "/b",
-                    "experiments": [{"name": "exp2"}]
+                    "tasks": [{"name": "exp2"}]
                 }
             }
         }

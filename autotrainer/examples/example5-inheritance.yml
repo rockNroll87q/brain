@@ -1,12 +1,12 @@
-experiments:
-  base_experiment:
+tasks:
+  base_task:
     script: train.py
     epochs: 20
     batch_size: 64
     optimizer: adam
 
   ml_defaults:
-    extends: base_experiment
+    extends: base_task
     learning_rate: 0.001
     metrics: [accuracy, f1]
 
@@ -23,13 +23,13 @@ experiments:
 datasets:
   dataset_alpha:
     root: /mnt/data/alpha
-    experiments:
+    tasks:
       - name: finetune_v1
         output_vars: [label1]
 
   dataset_beta:
     root: /mnt/data/beta
-    experiments:
+    tasks:
       - name: finetune_v2
         output_vars: [label2]
         override:

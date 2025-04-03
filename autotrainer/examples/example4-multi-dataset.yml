@@ -1,4 +1,4 @@
-experiments:
+tasks:
   other:
     learning_rate: 0.01
 
@@ -11,18 +11,18 @@ experiments:
     extends: shared
     script: special_train.py
     epochs: 10
-    description: "Specialized experiment"
+    description: "Specialized task"
 
 datasets:
   common_set:
     root: /data/common
-    experiments:
+    tasks:
       - name: shared
 
   custom_set:
     root: /data/custom
     description: "Custom set of data"
-    experiments:
+    tasks:
       - name: shared
         override:
           learning_rate: 0.01

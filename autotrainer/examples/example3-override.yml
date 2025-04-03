@@ -1,4 +1,4 @@
-experiments:
+tasks:
   deep_model:
     script: train.py
     epochs: 100
@@ -9,7 +9,7 @@ experiments:
 datasets:
   dataset_override:
     root: /data/override
-    experiments:
+    tasks:
       - name: deep_model
         output_vars: [target]
         override:
