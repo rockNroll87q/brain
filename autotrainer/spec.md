@@ -6,21 +6,21 @@
 
 ## 🎯 Purpose
 
-Define a set of deep learning experiments and apply them across multiple datasets, allowing for flexible parameterization, per-dataset overrides, and batch execution (e.g., on HPC/Slurm).
+Define a set of deep learning tasks and apply them across multiple datasets, allowing for flexible parameterization, per-dataset overrides, and batch execution (e.g., on HPC/Slurm).
 
 ---
 
 ## 📐 Structure
 
-### 🧪 `experiments:` (Global Experiment Definitions)
+### 🧪 `tasks:` (Global Experiment Definitions)
 
-A dictionary where keys are **experiment names**, and values define:
+A dictionary where keys are **task names**, and values define:
 - A training script
 - Fixed parameters
 - Optional parameter sweeps
 
 ```yaml
-experiments:
+tasks:
   finetune_all:
     description: "Finetune all layers"
     script: train.py
@@ -37,7 +37,7 @@ experiments:
 ```
 
 #### ✅ Rules:
-- Keys must be unique experiment names
+- Keys must be unique task names
 - If a param appears both as a static field and inside `param_set`, raise an error
 - `param_set` defines parameters to sweep over (cartesian product)
 - Optional fields: `description`, `requires_output_var`
@@ -48,14 +48,14 @@ experiments:
 
 Each dataset defines:
 - Root data path
-- A list of experiments to run
+- A list of tasks to run
 - Any required overrides or param sweeps specific to this dataset
 
 ```yaml
 datasets:
   dataset_alpha:
     root: /mnt/data/alpha
-    experiments:
+    tasks:
       - name: finetune_all
         output_vars: [label1, label2]
 
@@ -71,7 +71,7 @@ datasets:
 ```
 
 #### ✅ Rules:
-- Each experiment entry **must** include a `name` matching a global experiment
+- Each task entry **must** include a `name` matching a global task
 - `override` allows static parameter overrides per run
 - `param_set` **replaces** global `param_set` if defined locally
 
@@ -99,7 +99,7 @@ datasets:
 ## 🧪 Example of Full Config
 
 ```yaml
-experiments:
+tasks:
   finetune_all:
     script: train.py
     epochs: 50
@@ -116,7 +116,7 @@ experiments:
 datasets:
   dataset_alpha:
     root: /mnt/data/alpha
-    experiments:
+    tasks:
       - name: finetune_all
         output_vars: [label1, label2]
 
@@ -125,7 +125,7 @@ datasets:
 
   dataset_beta:
     root: /mnt/data/beta
-    experiments:
+    tasks:
       - name: finetune_all
         output_vars: [label1]
         override:

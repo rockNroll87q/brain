@@ -1,6 +1,6 @@
 # AutoTrainer
 
-**AutoTrainer** is a lightweight, extensible framework for defining and managing deep learning experiments across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying experiments, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
+**AutoTrainer** is a lightweight, extensible framework for defining and managing deep learning tasks across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying tasks, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
 
 ## 📦 Project Structure
 
@@ -37,7 +37,7 @@ pip install -r requirements.txt  # currently none strictly required
 2. **Create a config file**:
 
 ```yaml
-experiments:
+tasks:
   finetune:
     script: train.py
     epochs: 50
@@ -46,7 +46,7 @@ experiments:
 datasets:
   my_dataset:
     root: /data/my_dataset
-    experiments:
+    tasks:
       - name: finetune
         output_vars: [label1, label2]
 ```
@@ -66,11 +66,26 @@ for job in jobs:
     print(job)
 ```
 
+Optionally, extend the `JobRunner` as a clean way to run the defined jobs:
+
+```python
+from autotrainer import JobRunner
+
+class MyRunner(JobRunner):
+    def run_one(self, job:dict):
+        # Run your job script here!
+        return
+
+# Set max_workers > 1 for multiprocessing
+runner = MyRunner(jobs, max_workers=1) 
+runner.run()
+```
+
 ---
 
 ## 🧠 Features
 
-✅ Simple, declarative YAML experiment definitions  
+✅ Simple, declarative YAML task definitions  
 ✅ Dataset-specific overrides and parameter sweeps  
 ✅ Automatic expansion into per-job configurations  
 ✅ Platform-agnostic — you plug in the execution backend (Slurm, subprocess, etc.)  
@@ -82,10 +97,13 @@ for job in jobs:
 
 Explore the `examples/` directory for working YAML templates:
 
-- `example1-basic.yml`: One experiment on one dataset
-- `example2-sweep.yml`: Parameterized experiment with a `param_set`
-- `example3-override.yml`: Per-dataset overrides of experiment parameters
-- `example4-multi-dataset.yml`: Multiple datasets sharing and customizing experiments
+- `example1-basic.yml`: One task on one dataset
+- `example2-sweep.yml`: Parameterized task with a `param_set`
+- `example3-override.yml`: Per-dataset overrides of task parameters
+- `example4-multi-dataset.yml`: Multiple datasets sharing and customizing tasks
+- `example5-inheritance.yml`: Multi-level inheritance and overrides
+
+Additionally, run any of the above using `examples/proc_example.py <path>` to see the produced job objects.
 
 ---
 
