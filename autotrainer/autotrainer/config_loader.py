@@ -4,14 +4,14 @@ Created on Friday, 28 March 2025.
 @authors:
 * Austin Dibble, University of Glasgow
 
-
 -------------------------------------
 YAML Experiment Protocol Specification in Brief
 -------------------------------------
 
 Purpose:
     Define a structured YAML format to run deep learning experiments across multiple datasets,
-    allowing parameterized variants and per-dataset overrides.
+    allowing parameterized variants, per-dataset overrides, and reusable experiment definitions
+    via inheritance.
 
 Structure:
 
@@ -20,30 +20,46 @@ Structure:
     Each experiment includes:
         - static parameters (epochs, lr, etc.)
         - param_set (optional): keys with lists of values to sweep
+        - extends (optional): inherit fields from another experiment
         - description (optional): string to describe this experiment
+
+    Inheritance:
+        - An experiment may extend another by key name
+        - Inherited fields are merged, with child fields overriding parent fields
+        - Inheritance is resolved before validation
+        - Cycles or undefined parents raise validation errors
 
     Example:
     experiments:
-      finetune_all:
+      base_finetune:
         script: train.py
         epochs: 50
         learning_rate: 1e-5
+
+      finetune_all:
+        extends: base_finetune
         finetune_all_layers: true
 
 2. datasets:
     Dataset-specific job instructions. Each dataset includes:
         - root (str): base path to dataset
         - description (str) (optional): string to describe this dataset
+        - override (optional): dataset-wide param override for all experiments
+        - param_set (optional): dataset-wide param sweep for all experiments
+        - other static params may be defined here
         - experiments: list of experiments to run
             - name: experiment key from global section
             - override (optional): static parameter overrides
-            - param_set (optional): replaces global param_set
-            - description (optional): string to describe this dataset
+            - param_set (optional): replaces higher-level param_set
+            - description (optional): string to describe this specific run
 
     Example:
     datasets:
       dataset_alpha:
         root: /mnt/data/alpha
+        learning_rate: 0.001
+        param_set:
+          dropout: [0.1, 0.2]
         experiments:
           - name: finetune_all
             output_vars: [label1]
@@ -55,13 +71,15 @@ Structure:
               finetune_depth: [1, 3]
 
 Precedence:
-    - override > local param_set > global param_set > static params
+    - override > local param_set > dataset-level param_set > global param_set > static params
     - param_set expands to cartesian product of values
-    - Conflicts between static and param_set keys raise validation errors
+    - Conflicts between static and param_set keys in the same scope raise validation errors
 
 Validation Rules:
     - All experiment names in datasets must match defined experiments
     - param_set keys must not also appear as static params in the same block
+    - experiment inheritance trees must be acyclic and refer only to defined experiments
+
 
 -------------------------------------
 Overview of this File (How to Use)
@@ -74,8 +92,69 @@ Overview of this File (How to Use)
 
 import yaml
 import itertools
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Any, Set
 from pathlib import Path
+
+from loguru import logger
+
+class InheritanceError(Exception):
+    """Raised when inheritance resolution fails (e.g. due to cycles or missing base)."""
+    pass
+
+def _resolve_experiment_inheritance(experiments: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """
+    Resolves inheritance for experiment definitions.
+    
+    Args:
+        experiments (dict): Raw experiments dictionary from config, possibly with 'extends' keys.
+
+    Returns:
+        dict: A new dict with inheritance fully resolved and all fields flattened.
+    
+    Raises:
+        InheritanceError: If a cycle is detected or an undefined parent is referenced.
+    """
+    resolved = {}
+    seen = set()
+
+    def resolve(key: str, trail: Set[str]) -> Dict[str, Any]:
+        if key in resolved:
+            return resolved[key]
+
+        if key not in experiments:
+            raise InheritanceError(f"Experiment '{key}' is not defined.")
+
+        if key in trail:
+            raise InheritanceError(f"Inheritance cycle detected: {' -> '.join(list(trail) + [key])}")
+
+        exp = experiments[key]
+        base_key = exp.get("extends")
+
+        if not base_key:
+            resolved[key] = dict(exp)  # Make a copy
+            return resolved[key]
+
+        # Recursive resolution
+        trail.add(key)
+        base = resolve(base_key, trail)
+        trail.remove(key)
+
+        # Merge base and child
+        merged = dict(base)
+        merged.update({k: v for k, v in exp.items() if k != "extends"})  # Child overrides base
+        resolved[key] = merged
+
+        return merged
+
+    for key in experiments:
+        resolve(key, set())
+
+    # # Clean up, get rid of inheritance keys
+    # for key in experiments:
+    #     if "extends" in experiments[key]:
+    #         del experiments[key]["extends"]
+
+    return resolved
 
 class ConfigValidationError(Exception):
     """Raised when the configuration is invalid."""
@@ -83,8 +162,8 @@ class ConfigValidationError(Exception):
 
 class ConfigLoader:
     # In our overlap and param checks, these are the built-in keywords which cannot be used as user-defined variables.
-    _g_inbuilt_keywords = {"param_set", "description", \
-                            "name", "output_vars", "override", "experiments", "root"}
+    _g_inbuilt_keywords = {"param_set", "description", "extends", \
+                            "name", "override", "experiments", "root"}
 
 
     def __init__(self, config_source: Union[str, Path, Dict]):
@@ -154,6 +233,9 @@ class ConfigLoader:
 
         if not isinstance(datasets, dict):
             raise ConfigValidationError("Missing or invalid 'datasets' section. Must be a dictionary.")
+
+        experiments = _resolve_experiment_inheritance(experiments)
+        config["experiments"] = experiments # Update config object
 
         self._validate_experiments(experiments)
 
