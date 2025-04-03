@@ -1,6 +1,6 @@
 # AutoTrainer
 
-**AutoTrainer** is a lightweight, extensible framework for defining and managing deep learning tasks across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying tasks, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
+**AutoTrainer** is a lightweight, extensible framework for defining, running, and analyzing deep learning tasks across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying tasks, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
 
 ## 📦 Project Structure
 
@@ -19,12 +19,11 @@ autotrainer/
 │   ├── test_config_loader.py
 │   ├── test_job_creator.py
 │
-├── __init__.py             # Exposes main classes to the package root
-├── spec.md                 # Markdown version of the YAML protocol specification
+├── __init__.py             # Exposes main classes to the package
+├── spec.md                 # Markdown version of the YAML protocol spec
 └── README.md               # This file
 ```
 
----
 
 ## 🚀 Quick Start
 
@@ -81,19 +80,17 @@ runner = MyRunner(jobs, max_workers=1)
 runner.run()
 ```
 
----
+## Features
 
-## 🧠 Features
+- Simple, declarative YAML task definitions  
+- Dataset-specific overrides and parameter sweeps  
+- Automatic expansion into per-job configurations  
+- Platform-agnostic — you plug in the execution backend (Slurm, subprocess, etc.)  
+- Built-in validation with informative error messages
+- Decoupled, logical class interfaces
 
-✅ Simple, declarative YAML task definitions  
-✅ Dataset-specific overrides and parameter sweeps  
-✅ Automatic expansion into per-job configurations  
-✅ Platform-agnostic — you plug in the execution backend (Slurm, subprocess, etc.)  
-✅ Built-in validation with informative error messages
 
----
-
-## 🔍 Examples
+## Examples
 
 Explore the `examples/` directory for working YAML templates:
 
@@ -105,21 +102,66 @@ Explore the `examples/` directory for working YAML templates:
 
 Additionally, run any of the above using `examples/proc_example.py <path>` to see the produced job objects.
 
----
 
-## 🧪 Running Tests
+## 📄 Spec
+
+For a complete outline of the definitions YAML protocol format, see [`spec.md`](spec.md).
+
+
+## 📊 Result Creation & Aggregation
+
+AutoTrainer also includes a flexible and optional result management system via the `ResultManager` class. This allows you to:
+
+✅ Automatically emit per-job result files in `.json` or `.yaml`  
+✅ Structure your output using configurable file path patterns  
+✅ Collect and aggregate results across jobs  
+✅ Infer job metadata from file paths (e.g., task name, dataset name)  
+
+### 🔧 Emitting Results
+
+```python
+from autotrainer import ResultManager
+
+# Define output layout and format
+results = ResultManager(
+    root_dir="results",
+    output_pattern="{task_name}/{dataset_name}/{job_id}.json",
+    fmt="json"
+)
+
+# Emit result for a single job
+results.create_and_emit_result(
+    job,
+    results={"accuracy": 0.91, "f1": 0.88},
+    status="success",
+    extra={"notes": "trial_1"}
+)
+```
+
+This creates a file like:
+```
+results/finetune/dataset_alpha/job123.json
+```
+
+### 📥 Collecting Results
+
+```python
+all_results = results.collect_results()
+```
+
+By default, any metadata that can be inferred from the file path (e.g., `task_name`, `dataset_name`) will be added back to each result object.
+
+You can also opt-out of metadata inference, or override the root directory:
+
+```python
+results.collect_results(root_dir="custom_results", infer_metadata=False)
+```
+
+## Running Tests
 
 ```bash
 python -m unittest discover tests
 ```
-
----
-
-## 📄 Spec
-
-For a complete outline of the YAML protocol format, see [`spec.md`](spec.md).
-
----
 
 **Author**: Austin Dibble / Brain Imaging and Artificial Intelligence Research Lab
 **License**: 
