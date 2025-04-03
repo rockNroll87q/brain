@@ -162,3 +162,20 @@ def set_trainable_after_layer(model, target_layer_name):
             found = True  # Start setting layers as trainable from the next layer
 
     return found
+
+def find_layer(model, target_layer_name):
+    """
+    Finds the layer using the given string name. If it's not found, returns layer index of -1.
+    
+    Args:
+        model (tf.keras.Model): The model to modify.
+        target_layer_name (str): The name of the layer to find.
+
+    Returns:
+        (layer index, layer object)
+    """
+    for idx, layer in enumerate(model.layers):
+        if layer.name == target_layer_name:
+            return idx, layer
+
+    return -1, None
