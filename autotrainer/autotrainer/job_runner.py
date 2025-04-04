@@ -1,3 +1,32 @@
+"""
+Created on Wednesday, 2 April 2025.
+
+@authors:
+* Austin Dibble, University of Glasgow
+
+---------------------------------
+JobRunner - Job Execution Engine
+---------------------------------
+
+An extendable class framework for execution of provided
+job lists from the JobCreator. Provides utilties for 
+filtering and sorting jobs into new objects.
+
+Can be paired with ResultManager for managing job 
+artifacts/results.
+
+example:
+    class MyRunner(JobRunner):
+        def run_one(self, job:dict):
+            # Run your job here
+            return
+
+    runner = MyRunner(jobs, dry_run=True)
+    runner.filter_jobs(lambda job: job['dataset_name'] == 'alpha', inplace=True)
+    runner.sort_jobs(lambda job: job['params']['learning_rate'], inplace=True)
+    runner.run()
+
+"""
 
 import multiprocessing
 from typing import List, Dict, Optional, Callable

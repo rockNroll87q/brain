@@ -1,4 +1,24 @@
-import os
+"""
+Created on Wednesday, 2 April 2025.
+
+@authors:
+* Austin Dibble, University of Glasgow
+
+----------------------------------------------
+ResultManager - Job Artifact Management Engine
+----------------------------------------------
+
+An extendable class for emitting and collecting
+job results/artifacts.
+
+
+Example:
+    manager = ResultManager("results", "{task_name}/{dataset_name}/{job_id}.yaml", fmt='yaml')
+    result = manager.create_and_emit_result(job, results={"accuracy": 0.9}, status="success")
+    results = manager.collect_results()
+
+"""
+
 import json
 import yaml
 from pathlib import Path

@@ -81,13 +81,6 @@ Validation Rules:
     - task inheritance trees must be acyclic and refer only to defined tasks
 
 
--------------------------------------
-Overview of this File (How to Use)
--------------------------------------
-
-
-
-
 """
 
 import yaml

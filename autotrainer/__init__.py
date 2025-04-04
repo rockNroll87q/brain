@@ -1,1 +1,1 @@
-from .autotrainer import ConfigLoader, ConfigValidationError, JobCreator, JobRunner, ResultManager
+from .autotrainer import ConfigLoader, ConfigValidationError, JobCreator, JobRunner, ResultManager, aggregate_results

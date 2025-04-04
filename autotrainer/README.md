@@ -108,7 +108,7 @@ Additionally, run any of the above using `examples/proc_example.py <path>` to se
 For a complete outline of the definitions YAML protocol format, see [`spec.md`](spec.md).
 
 
-## 📊 Result Creation & Aggregation
+## 📊 Result Creation & Collection
 
 AutoTrainer also includes a flexible and optional result management system via the `ResultManager` class. This allows you to:
 
@@ -123,14 +123,14 @@ AutoTrainer also includes a flexible and optional result management system via t
 from autotrainer import ResultManager
 
 # Define output layout and format
-results = ResultManager(
+manager = ResultManager(
     root_dir="results",
     output_pattern="{task_name}/{dataset_name}/{job_id}.json",
     fmt="json"
 )
 
 # Emit result for a single job
-results.create_and_emit_result(
+manager.create_and_emit_result(
     job,
     results={"accuracy": 0.91, "f1": 0.88},
     status="success",
@@ -146,7 +146,7 @@ results/finetune/dataset_alpha/job123.json
 ### 📥 Collecting Results
 
 ```python
-all_results = results.collect_results()
+all_results = manager.collect_results()
 ```
 
 By default, any metadata that can be inferred from the file path (e.g., `task_name`, `dataset_name`) will be added back to each result object.
@@ -154,8 +154,40 @@ By default, any metadata that can be inferred from the file path (e.g., `task_na
 You can also opt-out of metadata inference, or override the root directory:
 
 ```python
-results.collect_results(root_dir="custom_results", infer_metadata=False)
+manager.collect_results(root_dir="custom_results", infer_metadata=False)
 ```
+
+## 📊 Aggregating and Comparing Results
+
+Once you’ve emitted results for each job, you can aggregate them into a structured table for easy comparison:
+
+```python
+from autotrainer import aggregate_results
+
+results = manager.collect_results()
+
+# Aggregate into a comparison table
+df = aggregate_results(
+    results,
+    index_fields=["job_id", "task_name", "dataset_name"],
+    auto_detect_metrics=True,
+    auto_detect_params=True,
+    strict=False  # lenient mode fills missing fields with NaN
+)
+
+print(df)
+```
+
+### 📋 Sample Output
+
+| job_id | task_name | dataset_name | accuracy | f1   | lr     | dropout |
+|--------|-----------|--------------|----------|------|--------|---------|
+| job1   | finetune  | ds1          | 0.91     | NaN  | 0.001  | 0.2     |
+| job2   | finetune  | ds2          | 0.88     | 0.83 | NaN    | 0.1     |
+
+- Missing fields are filled with `NaN` when `strict=False`
+- You can sort, filter, group, or export the table using normal `pandas` operations
+
 
 ## Running Tests
 
