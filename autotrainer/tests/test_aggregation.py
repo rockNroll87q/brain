@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-from autotrainer import aggregate_results
+from autotrainer.aggregation import aggregate_results
 
 class TestAggregateResults(unittest.TestCase):
 

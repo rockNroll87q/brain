@@ -29,9 +29,35 @@ from string import Formatter
 
 from loguru import logger
 
+def create_result(job: dict, results: dict, status: str = "success", extra: Optional[Dict] = None) -> dict:
+    """
+    Create a result object for output according to our recommended schema. Can be emitted via `emit_result`
+
+    Args:           
+        job (dict): The job spec.
+        results (dict): Custom dictionary of results to report. Can be metrics, or something else.
+        status (str): End job status, like "success" or "error"
+        extra (dict): Optional metadata keys to add onto the result object.
+        
+    Returns:
+        result object (dict)
+    """
+    result = {
+        "job_id": job["job_id"],
+        "status": status,
+        "results": results,
+        "params": job.get("params", {}),
+        "dataset_name": job.get("dataset_name"),
+        "task_name": job.get("task_name"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if extra:
+        result.update(extra)
+    return result
+        
 class ResultManager:
     """
-    Manages writing and reading experiment results in a configurable and consistent format.
+    Manages writing and reading task results in a configurable and consistent format.
 
     Responsibilities:
     - Emit result files for individual jobs using a structured schema
@@ -71,7 +97,12 @@ class ResultManager:
         results = manager.collect_results()
     """
 
-    def __init__(self, root_dir:Union[str, Path], output_pattern: str = "{job_id}.json", fmt: str = "json"):
+    def __init__(
+            self, 
+            root_dir:Union[str, Path], 
+            output_pattern: str = "{job_id}.json", 
+            fmt: str = "json"
+        ):
         self.output_pattern = output_pattern
         self.root_dir = Path(root_dir)
         self.fmt = fmt.lower()
@@ -117,33 +148,9 @@ class ResultManager:
         Returns:
             result object (dict)
         """
-        result = self.create_result(job, results, status, extra)
+        result = create_result(job, results, status, extra)
         return self.emit_result(result, job, output_path)
-        
-    def create_result(self, job: dict, results: dict, status: str = "success", extra: Optional[Dict] = None) -> dict:
-        """
-        Create a result object for output according to our recommended schema. Can be emitted via `emit_result`
 
-        Args:           
-            job (dict): The job spec.
-            results (dict): Custom dictionary of results to report. Can be metrics, or something else.
-            status (str): End job status, like "success" or "error"
-            extra (dict): Optional metadata keys to add onto the result object.
-            
-        Returns:
-            result object (dict)
-        """
-        result = {
-            "job_id": job["job_id"],
-            "status": status,
-            "results": results,
-            "params": job.get("params", {}),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        if extra:
-            result.update(extra)
-        return result
-        
     def emit_result(
         self,
         result: dict,
@@ -235,14 +242,14 @@ class ResultManager:
         rel_path = self.output_pattern.format(
             job_id=job["job_id"],
             dataset_name=job.get("dataset_name", "unknown_dataset"),
-            task_name=job.get("task_name", "unknown_experiment")
+            task_name=job.get("task_name", "unknown_task")
         )
         return Path(self.root_dir) / rel_path
     
 
     def _infer_metadata_from_path(self, full_path: Path) -> Dict[str, str]:
         """
-        Infers job metadata (like experiment_name, dataset_name, job_id)
+        Infers job metadata (like task_name, dataset_name, job_id)
         by parsing the full file path using the output_pattern.
 
         Args:
