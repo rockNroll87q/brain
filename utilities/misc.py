@@ -22,3 +22,15 @@ def pad_volume_to_shape(volume, target_shape=(256,256,256)):
 
     padded_vol = np.pad(volume, padding, mode='constant', constant_values=0)
     return padded_vol, padding
+
+def parse_predicted_variable(value):
+    if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+        # Attempt to parse a string representation of a list
+        try:
+            # Removing brackets and splitting by comma
+            return value.strip("[]").split(",")
+        except ValueError:
+            # If parsing fails, return the string as is
+            return value
+    else:
+        return value    
