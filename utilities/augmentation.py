@@ -12,13 +12,57 @@ Functions to augment training data.
 
 import numpy as np
 from scipy.ndimage import affine_transform
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, zoom
 import albumentations as albu
 from albumentations.core.transforms_interface import ImageOnlyTransform, DualTransform
 from brain.utilities.config import AugmentConfig
+from brain.utilities.misc import pad_volume_to_shape
 from scipy import stats
 from loguru import logger
 from typing import Tuple, Union, Optional
+
+def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: int = 0) -> np.ndarray:
+    """
+    Performs a 3D zoom on the input volume, cropping symmetrically on axes
+    larger than the original size and padding on smaller axes.
+    """
+    try:
+        import torchio as tio
+    except ImportError as e:
+        logger.warning("torchio module is not currently installed. zoom_volume will use scipy.ndimage.zoom")
+        badImport = True
+    else:
+        randAff = tio.RandomAffine((scale, scale), degrees=(0,0), 
+                                   translation=(0,0), isotropic=True, 
+                                   center='image', default_pad_value=fill_value, image_interpolation='linear')
+        badImport = False
+    
+    if badImport:
+        # Apply the zoom
+        x_zoomed = zoom(X_data, scale, order=order, mode='constant', cval=fill_value)
+
+        # Calculate the cropping indices to keep the zoomed volume centered
+        crop_slices = []
+        for orig_size, zoomed_size in zip(X_data.shape, x_zoomed.shape):
+            if zoomed_size > orig_size:
+                # Calculate start and end indices to crop symmetrically
+                extra_size = zoomed_size - orig_size
+                start_idx = extra_size // 2
+                end_idx = start_idx + orig_size
+                crop_slices.append(slice(start_idx, end_idx))
+            else:
+                # If the zoomed size is smaller, keep the whole axis
+                crop_slices.append(slice(0, zoomed_size))
+        
+        # Crop the zoomed volume symmetrically
+        x_zoomed = x_zoomed[tuple(crop_slices)]
+
+        # Axes that are smaller need padding with zeros to match the original shape
+        x_zoomed, _ = pad_volume_to_shape(x_zoomed, target_shape=X_data.shape)
+
+        return x_zoomed
+    else:
+        return np.squeeze(randAff(np.expand_dims(X_data, axis=0)), axis=0)
 
 def addWeighted(src1, alpha, src2, beta, gamma):
     """ 
@@ -62,7 +106,7 @@ def augmentation_salt_and_pepper_noise(X_data, generator:np.random.Generator, am
 
 class SaltAndPepperNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p=1.0):
-        super(SaltAndPepperNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(SaltAndPepperNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
@@ -93,7 +137,7 @@ def augmentation_gaussian_noise(X_data, generator:np.random.Generator):
 
 class GaussianNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p=1.0):
-        super(GaussianNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(GaussianNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
@@ -126,7 +170,7 @@ def augmentation_inhomogeneity_noise(X_data, inhom_vol, generator):
 class InhomogeneityNoiseAugment(ImageOnlyTransform):
 
     def __init__(self, inhom_vol: np.array, seed=None, always_apply=False, p=1.0):
-        super(InhomogeneityNoiseAugment, self).__init__(always_apply, p)
+        super(InhomogeneityNoiseAugment, self).__init__(p=p)
         self.inhom_vol = inhom_vol
         self.rng = np.random.default_rng(seed)
 
@@ -165,7 +209,7 @@ def fast_change_luminance_contrast(X_data, generator:np.random.Generator, clippi
 
 class GammaNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p_by_slice=0.5, p=1.0):
-        super(GammaNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(GammaNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
         self.p_by_slice = p_by_slice
     
@@ -211,7 +255,7 @@ def augmentation_neck_slice_repetition(X_data: np.ndarray, generator:np.random.G
 
 class SliceRepetitionNeckNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p=1.0):
-        super(SliceRepetitionNeckNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(SliceRepetitionNeckNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
@@ -239,40 +283,49 @@ def change_contrast(X_data: np.ndarray, generator:np.random.Generator, min_alpha
 
 class ContrastNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p=1.0):
-        super(ContrastNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(ContrastNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
         
     def apply(self, img, **params):
         return change_contrast(img, self.rng)
 
-
-def slice_spacing(X_data: np.ndarray, generator:np.random.Generator, min_slice_rep: int=2, max_slice_rep: int=5):
+def slice_spacing(X_data: np.ndarray, generator: np.random.Generator, min_slice_rep: int = 2, max_slice_rep: int = 5):
     """ 
-    Function to add more slices of the input volume in Axial view.
+    Function to add more slices of the input volume in a random view (Axial, Coronal, or Sagittal).
     If 'slice_repetitions'=2, means every slice is repeated twice (for a total of 2, consecutive).
     
-
     :param X_data: input volume (3D) -> shape (x,y,z)
-    :param min_slice_rep: min amount of consecutive slices in Axial view
-    :param max_slice_rep: max amount of consecutive slices in Axial view
+    :param min_slice_rep: min amount of consecutive slices
+    :param max_slice_rep: max amount of consecutive slices
     :return X_data_out: augmented volume
     """
 
     slice_repetitions = generator.integers(min_slice_rep, max_slice_rep)
+    axis = generator.integers(0, 3)  # Randomly select an axis (0, 1, or 2)
 
-    # Apply contrast change to 'X_data'
-    X_data_out = X_data[:, ::(slice_repetitions), :]                    # keep only '256/(slice_repetitions)' slices
-    X_data_out = np.repeat(X_data_out, slice_repetitions, axis=1)       # repeat the slice 'slice_repetitions' times
-    X_data_out = X_data_out[:, :X_data.shape[2], :]                     # take the same shape as the beginning
+    # Apply slice repetition along the randomly selected axis
+    if axis == 0:
+        X_data_out = X_data[::slice_repetitions, :, :]                # keep only 'x/(slice_repetitions)' slices
+        X_data_out = np.repeat(X_data_out, slice_repetitions, axis=0) # repeat the slice 'slice_repetitions' times
+        X_data_out = X_data_out[:X_data.shape[0], :, :]               # take the same shape as the beginning
+    elif axis == 1:
+        X_data_out = X_data[:, ::slice_repetitions, :]                # keep only 'y/(slice_repetitions)' slices
+        X_data_out = np.repeat(X_data_out, slice_repetitions, axis=1) # repeat the slice 'slice_repetitions' times
+        X_data_out = X_data_out[:, :X_data.shape[1], :]               # take the same shape as the beginning
+    else:
+        X_data_out = X_data[:, :, ::slice_repetitions]                # keep only 'z/(slice_repetitions)' slices
+        X_data_out = np.repeat(X_data_out, slice_repetitions, axis=2) # repeat the slice 'slice_repetitions' times
+        X_data_out = X_data_out[:, :, :X_data.shape[2]]               # take the same shape as the beginning
 
     assert X_data_out.shape == X_data.shape
 
     return X_data_out
 
 
+
 class SliceSpacingNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p=1.0):
-        super(SliceSpacingNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(SliceSpacingNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
     
     def apply(self, img, **params):
@@ -327,7 +380,7 @@ def augmentation_bias_noise(X_data: np.ndarray, generator:np.random.Generator):
 
 class BiasNoiseAugment(ImageOnlyTransform):
     def __init__(self, seed=None, p=1.0):
-        super(BiasNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(BiasNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
@@ -335,7 +388,7 @@ class BiasNoiseAugment(ImageOnlyTransform):
 
 class FastBiasNoiseAugment(ImageOnlyTransform):
     def __init__(self, max_cycles=5, factor=2.0, shape=(256, 256, 256), seed=None, p=1.0):
-        super(FastBiasNoiseAugment, self).__init__(always_apply=False, p=p)
+        super(FastBiasNoiseAugment, self).__init__(p=p)
         """
         Pre-compute noise volumes for bias noise augmentation.
 
@@ -446,7 +499,7 @@ class TranslationAugment(DualTransform):
     """ Class to deal with translation augmentation. """
 
     def __init__(self, max_shift: list = [20, 20, 20], always_apply=False, p=1.0):
-        super(TranslationAugment, self).__init__(always_apply, p)
+        super(TranslationAugment, self).__init__(p=p)
         self.max_shift = max_shift
 
     def get_params(self):
@@ -516,7 +569,7 @@ class FastTranslationAugment(DualTransform): # This is faster than the other tra
     """ Class to deal with translation augmentation. """
 
     def __init__(self, max_shift: list = [20, 20, 20],  padding_mode='constant', seed=None, always_apply=False, p=1.0):
-        super(FastTranslationAugment, self).__init__(always_apply, p)
+        super(FastTranslationAugment, self).__init__(p=p)
         self.max_shift = max_shift
         self.padding_mode = padding_mode
         self.rng = np.random.default_rng(seed)
@@ -557,7 +610,7 @@ class RotationAugment(DualTransform):
                  seed=None,
                  always_apply=False,
                  p=1.0):
-        super(RotationAugment, self).__init__(always_apply, p)
+        super(RotationAugment, self).__init__(p=p)
         self.max_angle = max_angle
         self.rot_spline_order = rot_spline_order
         self.rng = np.random.default_rng(seed)
@@ -603,7 +656,7 @@ class GhostingAugment(ImageOnlyTransform):
                  seed=None,
                  always_apply=False,
                  p=1.0):
-        super(GhostingAugment, self).__init__(always_apply, p)
+        super(GhostingAugment, self).__init__(p=p)
         self.max_repetitions = max_repetitions
         self.rng = np.random.default_rng(seed)
 
@@ -632,7 +685,7 @@ class RandomMotionAugment(ImageOnlyTransform):
                  translation = 5, # can also be a tuple of floats
                  num_transforms: int = 2, 
                  image_interpolation: str = 'linear', **kwargs):
-        super(RandomMotionAugment, self).__init__(always_apply, p)
+        super(RandomMotionAugment, self).__init__(p=p)
 
         try:
             import torchio as tio
@@ -657,7 +710,7 @@ class RandomGhostingAugment(ImageOnlyTransform):
                  axes = (0, 1, 2), # can also be a tuple of floats
                  intensity:Union[float, Tuple[float, float]] = (0.1, 0.6), 
                  restore:float = 0.02, **kwargs):
-        super(RandomGhostingAugment, self).__init__(always_apply, p)
+        super(RandomGhostingAugment, self).__init__(p=p)
 
         try:
             import torchio as tio
@@ -674,25 +727,25 @@ class RandomGhostingAugment(ImageOnlyTransform):
 
         return np.squeeze(self.randGhost(np.expand_dims(img, axis=0)), axis=0)
 
-def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name):
+def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
     augmentations = {
-        "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho),
-        "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1),
-        "tran": FastTranslationAugment(padding_mode='wrap', p=augment.prob_tran),
-        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur),
-        "salt": SaltAndPepperNoiseAugment(p=augment.prob_salt),
-        "gaus": GaussianNoiseAugment(p=augment.prob_gaus),
+        "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho,seed=seed),
+        "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1, seed=seed),
+        "tran": FastTranslationAugment(padding_mode='wrap', p=augment.prob_tran, seed=seed),
+        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur, seed=seed),
+        "salt": SaltAndPepperNoiseAugment(p=augment.prob_salt, seed=seed),
+        "gaus": GaussianNoiseAugment(p=augment.prob_gaus, seed=seed),
         "down": albu.OneOf([                                
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=0, p=1.),
                     albu.Downscale(scale_min=0.25, scale_max=0.75, interpolation=4, p=1.),
                 ], p=augment.prob_down),
-        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=augment.prob_gamm),
-        "cont": ContrastNoiseAugment(p=augment.prob_cont),
-        "slic": SliceSpacingNoiseAugment(p=augment.prob_slic),
-        "bias": FastBiasNoiseAugment(p=augment.prob_bias),
+        "gamm": GammaNoiseAugment(p_by_slice=0.5, p=augment.prob_gamm, seed=seed),
+        "cont": ContrastNoiseAugment(p=augment.prob_cont, seed=seed),
+        "slic": SliceSpacingNoiseAugment(p=augment.prob_slic, seed=seed),
+        "bias": FastBiasNoiseAugment(p=augment.prob_bias, seed=seed),
         "moti": RandomMotionAugment(p=augment.prob_moti),
         "ghos": RandomGhostingAugment(p = augment.prob_ghos),
-        "neck": SliceRepetitionNeckNoiseAugment(p = augment.prob_neck),
+        "neck": SliceRepetitionNeckNoiseAugment(p = augment.prob_neck, seed=seed),
         "grid": albu.GridDistortion(num_steps = 5,
                                     distort_limit = (-0.10, +0.10),
                                     interpolation = 4,
@@ -726,15 +779,27 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             return {k: v * prob for k, v in weights.items()}
         
         augdict = augmentConfig.dict()
+        # Normalize the prob weights in groups for geo/non-geo augmentations
         non_geo_weights = calculate_weights({k: v for k, v in augdict.items() \
                                     if 'prob' in k and k not in ['prob_overall', \
                                                                  'prob_geom', 'prob_colo', \
                                                                 'prob_tran', 'prob_rota']})
+        geo_weights = calculate_weights({k: v for k, v in augdict.items() \
+                            if k in ['prob_tran', 'prob_rota']})
+
+        # Update config weights with normalized ones, since albumentations change their API requirements
+        for k, v in non_geo_weights.items():
+            # augmentConfig[k] = v
+            setattr(augmentConfig, k, v)
+
+        for k, v in geo_weights.items():
+            # augmentConfig[k] = v
+            setattr(augmentConfig, k, v)
+
+        # == Printing logic below for debugging ==
+
         # Scale the non-geometric probabilities by the color augmentation probability and overall probability
         non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo*augmentConfig.prob_overall)
-
-        geo_weights = calculate_weights({k: v*augmentConfig.prob_geom*augmentConfig.prob_overall for k, v in augdict.items() \
-                                    if k in ['prob_tran', 'prob_rota']})
         # Scale the geometric probabilities by the overall probability and geometric probability
         geo_weights = scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
 
@@ -749,10 +814,12 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             return {'image': image, 'mask': mask}
 
     @classmethod
-    def get_augmenter(cls, inho_vol, augment: AugmentConfig):
+    def get_augmenter(cls, inho_vol, augment: AugmentConfig, **kwargs):
         """
         Use this function to get an instance of the Augmenter class for augmenting volumes. Returns None if augmentations aren't active.
-        Sample code snippet: 
+        
+        Sample code snippet:: 
+            
             dataset = dataset_manager.prepareDataset(config)
 
             # Create TF datasets for train and valid sets
@@ -762,7 +829,7 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             ds_data = {'train': ds_train, 'valid': ds_valid, 'test': ds_test} 
         """
         if augment.augmentation:
-            augmenter = cls(inho_vol, augment)
+            augmenter = cls(inho_vol, augment, **kwargs)
         else:
             augmenter = None
 
