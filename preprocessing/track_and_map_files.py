@@ -56,15 +56,7 @@ class MoveLogger(FileSystemEventHandler):
             # reset inactivity timer
             self.reset_timer()
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Watch for file moves under a directory and log them to CSV."
-    )
-    parser.add_argument('-w', '--watch-dir', required=True,
-                        help="Directory tree to monitor (recursive)")
-    parser.add_argument('-l', '--logdir',   required=True,
-                        help="Path to CSV file where moves will be logged")
-    args = parser.parse_args()
+def main(args):
 
     observer = Observer()
     timer = None
@@ -106,4 +98,14 @@ def main():
         observer.join()
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser(
+        description="Watch for file moves under a directory and log them to CSV."
+    )
+    parser.add_argument('-w', '--watch-dir', required=True,
+                        help="Directory tree to monitor (recursive)")
+    parser.add_argument('-l', '--logdir',   required=True,
+                        help="Path to CSV file where moves will be logged")
+    args = parser.parse_args()
+
+    main(args)

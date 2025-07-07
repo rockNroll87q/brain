@@ -67,6 +67,8 @@ def find_nii_gz_files(directory):
     """Recursively find all .nii.gz files under directory."""
     for root, _, files in os.walk(directory):
         for f in files:
+            if "/._" in f:
+                continue
             if f.endswith(".nii.gz"):
                 yield os.path.join(root, f)
 
@@ -95,7 +97,57 @@ def split_subjects(subjects, train_pct, valid_pct, test_pct, seed=None):
     return subs[:n_train], subs[n_train:n_train + n_valid], subs[n_train + n_valid:]
 
 
-def main():
+def main(args):
+
+    # Validate split sums to 100
+    total_pct = args.train + args.valid + args.test
+    if total_pct != 100:
+        parser.error(f"Train+valid+test percentages must sum to 100 (got {total_pct})")
+
+    # Gather subjects
+    subjects = get_subjects(args.anat_dir)
+    if not subjects:
+        sys.exit("No .nii.gz files found in anat_dir. Exiting.")
+
+    # Split subjects
+    train_subjs, valid_subjs, test_subjs = split_subjects(
+        subjects, args.train, args.valid, args.test, args.random_seed
+    )
+    split_map = {s: 'train' for s in train_subjs}
+    split_map.update({s: 'valid' for s in valid_subjs})
+    split_map.update({s: 'test' for s in test_subjs})
+
+    # Determine output directory
+    anat_abs = os.path.abspath(args.anat_dir)
+    project_root = os.path.dirname(os.path.dirname(anat_abs))
+    csv_dir = os.path.join(project_root, 'csv')
+    os.makedirs(csv_dir, exist_ok=True)
+    output_path = os.path.join(csv_dir, args.csv_name)
+
+    # Write CSV
+    fieldnames = ["anat", "task", "mask", "subj", "split"]
+    with open(output_path, "w", newline="") as fout:
+        writer = csv.DictWriter(fout, fieldnames=fieldnames)
+        writer.writeheader()
+        for subj in subjects:
+            anat_path = f"{args.project_name}/GT/{subj}.nii.gz"
+            for task, affix in zip(TASKS, AFFIXES):
+                mask_path = f"{args.project_name}/anat/{subj}_{affix}.nii.gz"
+                writer.writerow({
+                    "subj": subj,
+                    "anat": anat_path,
+                    "task": task,
+                    "mask": mask_path,
+                    "split": split_map[subj],
+                })
+
+    total_rows = len(subjects) * len(TASKS)
+    print(f"Saved CSV to {output_path} with {total_rows} rows across splits:")
+    print(f"  train: {len(train_subjs)} subjects, valid: {len(valid_subjs)} subjects, test: {len(test_subjs)} subjects")
+
+
+if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(
         description="Generate a tasks CSV from an anat directory with splits."
     )
@@ -139,52 +191,4 @@ def main():
     )
     args = parser.parse_args()
 
-    # Validate split sums to 100
-    total_pct = args.train + args.valid + args.test
-    if total_pct != 100:
-        parser.error(f"Train+valid+test percentages must sum to 100 (got {total_pct})")
-
-    # Gather subjects
-    subjects = get_subjects(args.anat_dir)
-    if not subjects:
-        sys.exit("No .nii.gz files found in anat_dir. Exiting.")
-
-    # Split subjects
-    train_subjs, valid_subjs, test_subjs = split_subjects(
-        subjects, args.train, args.valid, args.test, args.random_seed
-    )
-    split_map = {s: 'train' for s in train_subjs}
-    split_map.update({s: 'valid' for s in valid_subjs})
-    split_map.update({s: 'test' for s in test_subjs})
-
-    # Determine output directory
-    anat_abs = os.path.abspath(args.anat_dir)
-    project_root = os.path.dirname(os.path.dirname(anat_abs))
-    csv_dir = os.path.join(project_root, 'csv')
-    os.makedirs(csv_dir, exist_ok=True)
-    output_path = os.path.join(csv_dir, args.csv_name)
-
-    # Write CSV
-    fieldnames = ["mask", "task", "anat", "subj", "split"]
-    with open(output_path, "w", newline="") as fout:
-        writer = csv.DictWriter(fout, fieldnames=fieldnames)
-        writer.writeheader()
-        for subj in subjects:
-            anat_path = f"{args.project_name}/GT/{subj}.nii.gz"
-            for task, affix in zip(TASKS, AFFIXES):
-                mask_path = f"{args.project_name}/anat/{subj}_{affix}.nii.gz"
-                writer.writerow({
-                    "subj": subj,
-                    "anat": anat_path,
-                    "task": task,
-                    "mask": mask_path,
-                    "split": split_map[subj],
-                })
-
-    total_rows = len(subjects) * len(TASKS)
-    print(f"Saved CSV to {output_path} with {total_rows} rows across splits:")
-    print(f"  train: {len(train_subjs)} subjects, valid: {len(valid_subjs)} subjects, test: {len(test_subjs)} subjects")
-
-
-if __name__ == "__main__":
-    main()
+    main(args)

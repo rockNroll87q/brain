@@ -30,7 +30,32 @@ def build_filename_index(root_dir):
             index.setdefault(fname, []).append(os.path.join(dirpath, fname))
     return index
 
-def main():
+def main(args):
+
+    # 1) Build index of trg_dir
+    print(f"Indexing filenames under {args.trg_dir}…")
+    filename_index = build_filename_index(args.trg_dir)
+
+    # 2) Open CSV and write header
+    with open(f'{args.output}/raw_file_mapping.csv', "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["src_path", "found_path"])
+
+        # 3) Walk src_dir and look up each filename
+        for dirpath, _, filenames in os.walk(args.src_dir):
+            for fname in filenames:
+                if "/._" in fname:
+                    continue
+                src = os.path.join(dirpath, fname)
+                matches = filename_index.get(fname, [])
+                for found in matches:
+                    writer.writerow([src, found])
+                    print(f"Matched: {src} → {found}")
+
+    print(f"\nDone! Results written to {args.output}")
+
+if __name__ == "__main__":
+    
     parser = argparse.ArgumentParser(
         description="Map every file in src_dir to matching names under trg_dir, outputting a CSV."
     )
@@ -48,25 +73,4 @@ def main():
     )
     args = parser.parse_args()
 
-    # 1) Build index of trg_dir
-    print(f"Indexing filenames under {args.trg_dir}…")
-    filename_index = build_filename_index(args.trg_dir)
-
-    # 2) Open CSV and write header
-    with open(f'{args.output}/raw_file_mapping.csv', "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["src_path", "found_path"])
-
-        # 3) Walk src_dir and look up each filename
-        for dirpath, _, filenames in os.walk(args.src_dir):
-            for fname in filenames:
-                src = os.path.join(dirpath, fname)
-                matches = filename_index.get(fname, [])
-                for found in matches:
-                    writer.writerow([src, found])
-                    print(f"Matched: {src} → {found}")
-
-    print(f"\nDone! Results written to {args.output}")
-
-if __name__ == "__main__":
-    main()
+    main(args)
