@@ -18,8 +18,10 @@ from metrics import (
 
 # test with `python -m unittest` from brain root directory
 class TestMetricsFunctions(unittest.TestCase):
+    """Test for metrics utilities."""
 
     def setUp(self):
+        """Set up random fake values."""
         # Sample 100 values from a normal distribution for testing
         np.random.seed(184)  # For reproducibility
         self.y_true = np.random.normal(loc=50, scale=10, size=100)  # Mean=50, Std=10
@@ -41,6 +43,7 @@ class TestMetricsFunctions(unittest.TestCase):
         )
 
     def test_mae(self):
+        """Test MAE."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
         expected_mae = np.mean(np.abs(self.y_pred - self.y_true))
         self.assertAlmostEqual(wrapper.mae(), expected_mae)
@@ -49,6 +52,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.mae(), expected_mae)
 
     def test_me(self):
+        """Test ME."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
         expected_me = np.mean(self.y_pred - self.y_true)
         self.assertAlmostEqual(wrapper.me(), expected_me)
@@ -57,6 +61,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.me(), expected_me)
 
     def test_mse(self):
+        """Test MSE."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
         expected_mse = np.mean((self.y_pred - self.y_true) ** 2)
         self.assertAlmostEqual(wrapper.mse(), expected_mse)
@@ -65,6 +70,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.mse(), expected_mse)
 
     def test_rmse(self):
+        """Test RMSE."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
         expected_rmse = np.sqrt(np.mean((self.y_pred - self.y_true) ** 2))
         self.assertAlmostEqual(wrapper.rmse(), expected_rmse)
@@ -73,6 +79,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.rmse(), expected_rmse)
 
     def test_r_squared(self):
+        """Test R^2."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
         expected_r2 = 1 - (
             (np.sum((self.y_true - self.y_pred) ** 2))
@@ -84,6 +91,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.r_squared(), expected_r2)
 
     def test_pearsons_r(self):
+        """Test r."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
         expected_pearson_r = np.corrcoef(self.y_true, self.y_pred)[0, 1]
         self.assertAlmostEqual(wrapper.pearsons_r(), expected_pearson_r)
@@ -92,6 +100,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.pearsons_r(), expected_pearson_r)
 
     def test_maxMAE(self):
+        """Test max(MAE)."""
         wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
 
         # Compute expected max MAE manually
@@ -110,6 +119,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.maxMAE(categories), expected_max_mae)
 
     def test_longitudinal_mde(self):
+        """Test longitudinal; MDE."""
         wrapper = LongitudinalMetricsWrapper(
             y1=self.y1, y2=self.y2, y_pred1=self.y_pred1, y_pred2=self.y_pred2
         )
@@ -126,6 +136,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.mde(), expected_mde)
 
     def test_longitudinal_mde_sd(self):
+        """Test longitudinal; MDE-SD."""
         wrapper = LongitudinalMetricsWrapper(
             y1=self.y1, y2=self.y2, y_pred1=self.y_pred1, y_pred2=self.y_pred2
         )
@@ -142,6 +153,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.mde_sd(), expected_mde_sd)
 
     def test_longitudinal_made(self):
+        """Test longitudinal; MAdE."""
         wrapper = LongitudinalMetricsWrapper(
             y1=self.y1, y2=self.y2, y_pred1=self.y_pred1, y_pred2=self.y_pred2
         )
@@ -160,6 +172,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.made(), expected_made)
 
     def test_longitudinal_made_sd(self):
+        """Test longitudinal; MAdE-SD."""
         wrapper = LongitudinalMetricsWrapper(
             y1=self.y1, y2=self.y2, y_pred1=self.y_pred1, y_pred2=self.y_pred2
         )
@@ -178,6 +191,7 @@ class TestMetricsFunctions(unittest.TestCase):
         self.assertAlmostEqual(wrapper_df.made_sd(), expected_made_sd)
 
     def test_longitudinal_maxMAdE(self):
+        """Test longitudinal; max(MAdE)."""
         y_cat = self.y1  # Assuming y_cat corresponds to y1 in longitudinal data
         y = self.y2 - self.y1
         y_pred = self.y_pred2 - self.y_pred1
@@ -213,6 +227,8 @@ class TestMetricsFunctions(unittest.TestCase):
             ), expected_max_made)
 
     def test_longitudinal_k(self):
+        """Test longitudinal; k."""
+
         wrapper = LongitudinalMetricsWrapper(
             y1=self.y1, y2=self.y2, y_pred1=self.y_pred1, y_pred2=self.y_pred2
         )

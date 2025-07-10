@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from loguru import logger
 
 def parse_arguments():
+    """Argument parsing for this script."""
     parser = argparse.ArgumentParser(description='Process some CSV, column and output directory.')
     parser.add_argument('--csv_path', required=True, type=str, help='Path to the input CSV file.')
     parser.add_argument('--col', required=True, type=str, help='Column name in the CSV file containing paths to .nii.gz files.')
@@ -35,12 +36,14 @@ def parse_arguments():
     return parser.parse_args()
 
 def create_output_folder(base_output_dir, dataset_name):
+    """Create the output directory."""
     local_time_str = strftime("%Y-%m-%d_%H-%M-%S", localtime())
     out_dir = Path(base_output_dir, f"{local_time_str}_voxel_dists_{dataset_name}")
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
 
 def load_volume_paths(csv_path, column_name, images_path=None):
+    """Load all the volume paths as a list."""
     df = pd.read_csv(csv_path)
 
     logger.info(df[column_name].head())
@@ -65,7 +68,7 @@ def load_volume_paths(csv_path, column_name, images_path=None):
 
 
 def z_scoring(x):
-    ''' Function to z-score the data taking into account only non-zero voxels. '''
+    """Function to z-score the data taking into account only non-zero voxels."""
 
     # Find mean and std of non-zero voxels
     non_zero_x = ~np.isclose(x, 0)
@@ -79,6 +82,7 @@ def z_scoring(x):
     return y
 
 def calculate_histogram(volume_path, bin_edges, z_bin_edges):
+    """Calculates the voxel intensity histogram for a volume."""
     img = nib.load(volume_path)
     data = img.get_fdata()
     data = data[data > 0] # filter out zero voxels
@@ -93,12 +97,14 @@ def calculate_histogram(volume_path, bin_edges, z_bin_edges):
     return hist, z_hist, num_nonzero
 
 def calculate_vol_size(volume_path):
+    """Calculate the size of the non-zero pizels in the volume (approx)."""
     img = nib.load(volume_path)
     data = img.get_fdata()
     non_zero_x = ~np.isclose(data, 0)
     return np.count_nonzero(data[non_zero_x])
 
 def calculate_bin_edges(vol_paths):
+    """Utility for making the histogram."""
     # Determine the global min and max values across all volumes
     global_min = float('inf')
     global_max = float('-inf')
@@ -141,6 +147,7 @@ def sample_paths(paths_list, sample_size=1000):
         return random.sample(paths_list, sample_size)
 
 def main():
+    """Run everything"""
     args = parse_arguments()
     
     csv_path = args.csv_path

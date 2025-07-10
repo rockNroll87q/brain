@@ -12,7 +12,6 @@ As input you provide:
 Example terminal command:   
 ./find_raw_files.py --src_dir /analyse/Project0404/brain_age/data/project_name/raw/ --trg_dir /analyse/Project0404/brain_age/data/project_name/ --output /analyse/Project0404/brain_age/data/project_name/raw
 
-
 """
 
 import os
@@ -31,7 +30,7 @@ def build_filename_index(root_dir):
     return index
 
 def main(args):
-
+    """Run everything"""
     # 1) Build index of trg_dir
     print(f"Indexing filenames under {args.trg_dir}…")
     filename_index = build_filename_index(args.trg_dir)

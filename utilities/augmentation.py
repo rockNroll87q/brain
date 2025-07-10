@@ -19,7 +19,7 @@ from brain.utilities.config import AugmentConfig
 from brain.utilities.misc import pad_volume_to_shape
 from scipy import stats
 from loguru import logger
-from typing import Tuple, Union, Optional
+from typing import Tuple, Union
 
 def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: int = 0) -> np.ndarray:
     """
@@ -28,7 +28,7 @@ def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: in
     """
     try:
         import torchio as tio
-    except ImportError as e:
+    except ImportError as _:
         logger.warning("torchio module is not currently installed. zoom_volume will use scipy.ndimage.zoom")
         badImport = True
     else:
@@ -105,11 +105,14 @@ def augmentation_salt_and_pepper_noise(X_data, generator:np.random.Generator, am
 
 
 class SaltAndPepperNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for the S&P noise."""
     def __init__(self, seed=None, p=1.0):
+        """Init."""
         super(SaltAndPepperNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
+        """Apply."""
         return augmentation_salt_and_pepper_noise(img, self.rng)
 
 
@@ -136,11 +139,15 @@ def augmentation_gaussian_noise(X_data, generator:np.random.Generator):
 
 
 class GaussianNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for gaussian noise aug."""
+
     def __init__(self, seed=None, p=1.0):
+        """Init."""
         super(GaussianNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
+        """Apply."""
         return augmentation_gaussian_noise(img, self.rng)
 
 
@@ -168,8 +175,10 @@ def augmentation_inhomogeneity_noise(X_data, inhom_vol, generator):
 
 
 class InhomogeneityNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for inhomogeneity noise simulation."""
 
     def __init__(self, inhom_vol: np.array, seed=None, always_apply=False, p=1.0):
+        """Init."""
         super(InhomogeneityNoiseAugment, self).__init__(p=p)
         self.inhom_vol = inhom_vol
         self.rng = np.random.default_rng(seed)
@@ -178,6 +187,7 @@ class InhomogeneityNoiseAugment(ImageOnlyTransform):
             logger.warning('Inho volume passed to InhomogeneityNoiseAugment is None. Augmentation will instead be an identity operation.')
 
     def apply(self, img, **params):
+        """Apply."""
         if self.inhom_vol is None:
             return img
         
@@ -185,6 +195,7 @@ class InhomogeneityNoiseAugment(ImageOnlyTransform):
 
 
 def fast_change_luminance_contrast(X_data, generator:np.random.Generator, clipping=False, threshold=0.025, by_slice=True):
+    """Fast version of changing the volume contrast."""
     gamma = (3.0 - 0.5) * generator.random() + 0.5
 
     # Calculate min and max values differently based on the value of by_slice
@@ -208,12 +219,16 @@ def fast_change_luminance_contrast(X_data, generator:np.random.Generator, clippi
     return X_data_out
 
 class GammaNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for gamma/luminance aug."""
+
     def __init__(self, seed=None, p_by_slice=0.5, p=1.0):
+        """Init."""
         super(GammaNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
         self.p_by_slice = p_by_slice
     
     def apply(self, img, **params):
+        """Apply."""
         if self.rng.random() < self.p_by_slice:
             by_slice = True
         else:
@@ -254,11 +269,15 @@ def augmentation_neck_slice_repetition(X_data: np.ndarray, generator:np.random.G
     return X_data_out
 
 class SliceRepetitionNeckNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for neck slice repetition aug."""
+
     def __init__(self, seed=None, p=1.0):
+        """Init."""
         super(SliceRepetitionNeckNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
+        """Apply."""
         return augmentation_neck_slice_repetition(img, self.rng)
 
 def change_contrast(X_data: np.ndarray, generator:np.random.Generator, min_alpha: float=0.5, max_alpha: float=3.0):
@@ -282,11 +301,15 @@ def change_contrast(X_data: np.ndarray, generator:np.random.Generator, min_alpha
 
 
 class ContrastNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for contrast noise aug."""
+    
     def __init__(self, seed=None, p=1.0):
+        """Init."""
         super(ContrastNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
         
     def apply(self, img, **params):
+        """Apply."""
         return change_contrast(img, self.rng)
 
 def slice_spacing(X_data: np.ndarray, generator: np.random.Generator, min_slice_rep: int = 2, max_slice_rep: int = 5):
@@ -322,13 +345,16 @@ def slice_spacing(X_data: np.ndarray, generator: np.random.Generator, min_slice_
     return X_data_out
 
 
-
 class SliceSpacingNoiseAugment(ImageOnlyTransform):
+    """Albumentations warpper for slice spacing aug."""
+
     def __init__(self, seed=None, p=1.0):
+        """Init."""
         super(SliceSpacingNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
     
     def apply(self, img, **params):
+        """Apply."""
         return slice_spacing(img, self.rng)
 
 
@@ -379,15 +405,22 @@ def augmentation_bias_noise(X_data: np.ndarray, generator:np.random.Generator):
 
 
 class BiasNoiseAugment(ImageOnlyTransform):
+    """Albumentations wrapper for bias noise aug."""
+    
     def __init__(self, seed=None, p=1.0):
+        """Init."""
         super(BiasNoiseAugment, self).__init__(p=p)
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
+        """Apply."""
         return augmentation_bias_noise(img, self.rng)
 
 class FastBiasNoiseAugment(ImageOnlyTransform):
+    """Albumentations class for *fast* bias noise augmentation (use this one instead of slow)."""
+
     def __init__(self, max_cycles=5, factor=2.0, shape=(256, 256, 256), seed=None, p=1.0):
+        """Init."""
         super(FastBiasNoiseAugment, self).__init__(p=p)
         """
         Pre-compute noise volumes for bias noise augmentation.
@@ -496,24 +529,26 @@ def translate_volume(image,
 
 
 class TranslationAugment(DualTransform):
-    """ Class to deal with translation augmentation. """
+    """Class to deal with translation augmentation."""
 
     def __init__(self, max_shift: list = [20, 20, 20], always_apply=False, p=1.0):
+        """Init."""
         super(TranslationAugment, self).__init__(p=p)
         self.max_shift = max_shift
 
     def get_params(self):
-
+        """Get the parameters to shift, randomly."""
         # Randomly select parameters
         try:
             shifts = [(np.random.RandomState().randint(2 * i) - i) for i in self.max_shift]
             shift_x0, shift_x1, shift_x2 = shifts
-        except:
+        except Exception as _:
             shift_x0, shift_x1, shift_x2 = [0] * 3
 
         return {"shift_x0": shift_x0, "shift_x1": shift_x1, "shift_x2": shift_x2}
 
     def apply(self, img, shift_x0: int = 0, shift_x1: int = 0, shift_x2: int = 0, **params):
+        """Apply random translation."""
 
         # Apply to image
         if np.issubdtype(img.dtype, np.floating):  # image
@@ -566,27 +601,28 @@ def fast_translate_volume(image, shift_x0: int, shift_x1: int, shift_x2: int, pa
     return translated_image
 
 class FastTranslationAugment(DualTransform): # This is faster than the other translation by about a factor of 10x
-    """ Class to deal with translation augmentation. """
+    """Class to deal with translation augmentation, but faster!"""
 
     def __init__(self, max_shift: list = [20, 20, 20],  padding_mode='constant', seed=None, always_apply=False, p=1.0):
+        """Init."""
         super(FastTranslationAugment, self).__init__(p=p)
         self.max_shift = max_shift
         self.padding_mode = padding_mode
         self.rng = np.random.default_rng(seed)
 
     def get_params(self):
-
+        """Get random shift parameters"""
         # Randomly select parameters
         try:
             shifts = [(self.rng.integers(2 * i) - i) for i in self.max_shift]
             shift_x0, shift_x1, shift_x2 = shifts
-        except:
+        except Exception as _:
             shift_x0, shift_x1, shift_x2 = [0] * 3
 
         return {"shift_x0": shift_x0, "shift_x1": shift_x1, "shift_x2": shift_x2}
 
     def apply(self, img, shift_x0: int = 0, shift_x1: int = 0, shift_x2: int = 0, **params):
-
+        """Apply translation."""
         # Apply to image
         if np.issubdtype(img.dtype, np.floating):  # image
             img_out = fast_translate_volume(img,
@@ -602,7 +638,7 @@ class FastTranslationAugment(DualTransform): # This is faster than the other tra
         return img_out
 
 class RotationAugment(DualTransform):
-    """ Class to deal with rotation augmentation. """
+    """Class to deal with rotation augmentation."""
 
     def __init__(self,
                  max_angle: int = 10,
@@ -610,13 +646,14 @@ class RotationAugment(DualTransform):
                  seed=None,
                  always_apply=False,
                  p=1.0):
+        """Init."""
         super(RotationAugment, self).__init__(p=p)
         self.max_angle = max_angle
         self.rot_spline_order = rot_spline_order
         self.rng = np.random.default_rng(seed)
 
     def get_params(self):
-
+        """Get random rotation parameters."""
         # Randomly select parameters
         random_angle = self.rng.integers(2 * self.max_angle) - self.max_angle
         rot_axes = self.rng.permutation(range(3))[:2]  # random select the 2 rotation axes
@@ -624,7 +661,7 @@ class RotationAugment(DualTransform):
         return {"random_angle": random_angle, "rot_axes": rot_axes}
 
     def apply(self, img, random_angle: int, rot_axes: int, **params):
-
+        """Apply rotation transform."""
         # Apply to image
         if np.issubdtype(img.dtype, np.floating):  # image
             img_out = rotate(input=img,
@@ -649,18 +686,20 @@ class RotationAugment(DualTransform):
 
 
 class GhostingAugment(ImageOnlyTransform):
-    """ Class to deal with ghosting augmentation. """
+    """Class to deal with ghosting augmentation."""
 
     def __init__(self,
                  max_repetitions: int = 4,
                  seed=None,
                  always_apply=False,
                  p=1.0):
+        """Init."""
         super(GhostingAugment, self).__init__(p=p)
         self.max_repetitions = max_repetitions
         self.rng = np.random.default_rng(seed)
 
     def apply(self, img, **params):
+        """Apply ghosting augmentation."""
         # Randomly select parameters
         repetitions = self.rng.choice(range(1, self.max_repetitions + 1))
         axis = self.rng.choice(range(len(img.shape)))
@@ -678,13 +717,17 @@ class GhostingAugment(ImageOnlyTransform):
         return img_out
     
 class RandomMotionAugment(ImageOnlyTransform):
-    """ Class to add randomMotion augmentation from https://torchio.readthedocs.io/transforms/augmentation.html#torchio.transforms.RandomMotion """
+    """
+    Class to add randomMotion augmentation. 
+    From https://torchio.readthedocs.io/transforms/augmentation.html#torchio.transforms.RandomMotion
+    """
 
     def __init__(self, always_apply=False, p=1.0, 
                  degrees = 10, # can also be a tuple of floats
                  translation = 5, # can also be a tuple of floats
                  num_transforms: int = 2, 
                  image_interpolation: str = 'linear', **kwargs):
+        """Init."""
         super(RandomMotionAugment, self).__init__(p=p)
 
         try:
@@ -697,19 +740,24 @@ class RandomMotionAugment(ImageOnlyTransform):
             self.badImport = False
 
     def apply(self, img, **params):
+        """Apply."""
         if self.badImport:
             return img
 
         return np.squeeze(self.randMot(np.expand_dims(img, axis=0)), axis=0)
     
 class RandomGhostingAugment(ImageOnlyTransform):
-    """ Class to add randomMotion augmentation from https://torchio.readthedocs.io/transforms/augmentation.html#torchio.transforms.RandomGhosting """
+    """
+    Class to add randomMotion augmentation.
+    From https://torchio.readthedocs.io/transforms/augmentation.html#torchio.transforms.RandomGhosting
+    """
 
     def __init__(self, always_apply=False, p=1.0, 
                  num_ghosts:Union[int, Tuple[int, int]] = (1, 6), # can also be a tuple of floats
                  axes = (0, 1, 2), # can also be a tuple of floats
                  intensity:Union[float, Tuple[float, float]] = (0.1, 0.6), 
                  restore:float = 0.02, **kwargs):
+        """Init."""
         super(RandomGhostingAugment, self).__init__(p=p)
 
         try:
@@ -722,12 +770,14 @@ class RandomGhostingAugment(ImageOnlyTransform):
             self.badImport = False
 
     def apply(self, img, **params):
+        """Apply."""
         if self.badImport:
             return img
 
         return np.squeeze(self.randGhost(np.expand_dims(img, axis=0)), axis=0)
 
 def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
+    """Get the augmentation you want using the four-letter string code."""
     augmentations = {
         "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho,seed=seed),
         "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1, seed=seed),
@@ -761,7 +811,10 @@ def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
     return augmentations.get(name)
 
 class Augmenter: # New augmentation class. Recommended to use this now instead of the above direct functions
+    """Augmenter class. Wraps around all the augmentation functions."""
+
     def __init__(self, inho_vol, augmentConfig: AugmentConfig):
+        """Init."""
         self.inho_vol = inho_vol
         self.augmentConfig = augmentConfig
         # This part is just to ensure that the probabilities are normalized to levels that we expect. 
@@ -803,11 +856,12 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         # Scale the geometric probabilities by the overall probability and geometric probability
         geo_weights = scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
 
-        logger.debug(f'Augmentation Normalized Probabilities:')
+        logger.debug('Augmentation Normalized Probabilities:')
         logger.debug(f'\tGeom Probabilities: {geo_weights}')
         logger.debug(f'\tNon-geom Probabilities: {non_geo_weights}')
 
     def identity(self, image, mask=None):
+        """Get image or image+mask without any transform."""
         if mask is None:
             return {'image': image}
         else:

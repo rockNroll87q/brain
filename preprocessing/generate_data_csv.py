@@ -82,8 +82,11 @@ def get_subjects(anat_dir):
     return sorted(bases)
 
 
-def split_subjects(subjects, train_pct, valid_pct, test_pct, seed=None):
-    """Partition subjects into train/valid/test lists based on percentages."""
+def split_subjects(subjects, train_pct, valid_pct, seed=None):
+    """
+    Partition subjects into train/valid/test lists based on percentages.
+    Test percentage is inferred.
+    """
     if seed is not None:
         random.seed(seed)
     subs = subjects.copy()
@@ -92,13 +95,12 @@ def split_subjects(subjects, train_pct, valid_pct, test_pct, seed=None):
     total = len(subs)
     n_train = int(total * train_pct / 100)
     n_valid = int(total * valid_pct / 100)
-    n_test = total - (n_train + n_valid)
 
     return subs[:n_train], subs[n_train:n_train + n_valid], subs[n_train + n_valid:]
 
 
 def main(args):
-
+    """Main"""
     # Validate split sums to 100
     total_pct = args.train + args.valid + args.test
     if total_pct != 100:

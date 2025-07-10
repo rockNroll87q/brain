@@ -72,7 +72,8 @@ class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
                 baseline=None,
                 restore_best_weights=False,
                 timelimit:Union[int, float, str, timedelta]='inf'): # Time limit in seconds, as a string like 'Xd Yh Zm', or as a datetime.timedelta object. 'inf' means no timelimit
-        
+        """Initialise class; parse time information."""
+
         super(EarlyStoppingWithTimer, self).__init__(monitor, min_delta, patience, verbose, mode, baseline, restore_best_weights)
         
         # Determine the type of timelimit and set it appropriately
@@ -109,10 +110,12 @@ class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
         return timedelta(days=days, hours=hours, minutes=minutes)
 
     def on_epoch_begin(self, epoch, logs=None):
+        """Callback called at the beginning of each epoch."""
         super().on_epoch_begin(epoch, logs)
         self.start_time = tf.timestamp() # Mark the beginning time of the current epoch
 
     def on_epoch_end(self, epoch, logs=None):
+        """Callback called at the end of each epoch. Calculates time and updates projections."""
         super().on_epoch_end(epoch, logs)
 
         if self.model.stop_training: # The early stopping callback may have already triggered a stop
