@@ -34,7 +34,12 @@ from watchdog.events import FileSystemEventHandler, FileMovedEvent
 INACTIVITY_TIMEOUT = 30 * 60  # 30 minutes
 
 class MoveLogger(FileSystemEventHandler):
+    """
+    Utility class for tracking file movements.
+    For each movement triggered via on_moved, logs into a CSV what the move was.
+    """
     def __init__(self, logdir, reset_timer):
+        """Initialize the MoveLogger."""
         self.logdir = f'{logdir}/file_movement_tracking.csv'
         self.reset_timer = reset_timer
         # write header if file doesn't exist
@@ -46,6 +51,7 @@ class MoveLogger(FileSystemEventHandler):
             pass
 
     def on_moved(self, event):
+        """Track each movement event."""
         if isinstance(event, FileMovedEvent):
             # human‐readable timestamp
             event_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -57,7 +63,7 @@ class MoveLogger(FileSystemEventHandler):
             self.reset_timer()
 
 def main(args):
-
+    """Run and watch for file moves."""
     observer = Observer()
     timer = None
 

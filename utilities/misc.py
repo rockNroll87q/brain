@@ -10,6 +10,10 @@ Miscellaneous utility functions in brain library
 import numpy as np
 
 def pad_volume_to_shape(volume, target_shape=(256,256,256)):
+    """
+    Given a volume, adds necessary constant padding to yield desired shape.
+    Does NOT handle if the volume is *larger* than the desired shape. Only smaller!
+    """
     # padding = [(0, max(target_dim - current_dim, 0)) for target_dim, current_dim in zip(target_shape, volume.shape)]
 
     padding = []
@@ -24,6 +28,7 @@ def pad_volume_to_shape(volume, target_shape=(256,256,256)):
     return padded_vol, padding
 
 def parse_predicted_variable(value):
+    """Given a incoming argument string like "[var1,var2,var3]", this function splits them into a list."""
     if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
         # Attempt to parse a string representation of a list
         try:

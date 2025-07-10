@@ -94,6 +94,14 @@ def remove_model_connectivity(model):
 
 
 def print_model_layer_names(model, print_details=True):
+    """
+    Print all the layer names from the TF/keras model. 
+    Lists if each layer is trainable or not.
+
+    Args:
+        model: TF/keras model
+        print_details: print out inner parts of the layer.
+    """
     logger.info('Printing model layer names:')
     for layer in model.layers:
         logger.info(f'{layer.name} -- Trainable: {layer.trainable}')

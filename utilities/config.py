@@ -1,6 +1,16 @@
+"""
+Created on 01-03-2024
+
+@authors:
+* Austin Dibble, University of Glasgow
+
+Base augmentation config
+"""
+
 from pydantic import BaseModel, Field
 
 class AugmentConfig(BaseModel):
+    """Augmentation configurations"""
     augmentation: bool = Field(False, title="use or not data augmentation")
     prob_overall: float = Field(0.9, title="overall probability to apply data augmentation (training ONLY)")
 

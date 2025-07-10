@@ -14,13 +14,15 @@ import pandas as pd
 from utilities import EarlyStoppingWithTimer
 
 # test with python -m pytest from brain root directory
-class TestMetricsFunctions(unittest.TestCase):
-
+class TestEarlyStopperFunctions(unittest.TestCase):
+    """Test functions for the EarlyStoppingWithTimer utility."""
     def setUp(self):
+        """Setup variables/randomness/etc."""
         # Sample 100 values from a normal distribution for testing
         np.random.seed(184)  # For reproducibility
 
     def test_string_parse(self):
+        """Test for accurate string parsing."""
         # Example using string
         for day in range(7):
             for hour in range(24):
@@ -33,6 +35,7 @@ class TestMetricsFunctions(unittest.TestCase):
 
 
     def test_timedelta(self):
+        """Test that it works with timedelta objects."""
         # Example using a timedelta object
         for day in range(7):
             for hour in range(24):
@@ -44,6 +47,7 @@ class TestMetricsFunctions(unittest.TestCase):
                     self.assertAlmostEqual(seconds, earlystopper.timelimit)
 
     def test_integer_seconds(self):
+        """Test that it works with seconds."""
         # Example using float/int seconds
         for day in range(7):
             for hour in range(24):

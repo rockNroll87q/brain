@@ -38,9 +38,9 @@ class LRPStrategyBuilder:
     - beta: float parameter to focus negative predictions.
     - epsilon: float parameter to .... ?
     - num_b_layers: The number of beginning layers on which to apply the 'b' parameter. 1-2 seems to work.
-
     """
     def __init__(self, model:Model, alpha:float=1, beta:float=1, epsilon:float=0.25, num_b_layers:int=1):
+        """Initialise"""
         self.model = model
         self.alpha = alpha
         self.beta = beta
@@ -50,20 +50,21 @@ class LRPStrategyBuilder:
 
     @staticmethod
     def _get_conv_layer_strategy(alpha, beta):
+        """Basic conv layer strategy dict."""
         return {'alpha': alpha, 'beta': beta}
     
     @staticmethod
     def _get_dense_layer_strategy(epsilon):
+        """Basic dense layer strategy dict."""
         return {'epsilon': epsilon}
     
     @staticmethod
     def _get_input_layer_strategy(b, flat):
+        """Basic input layer strategy dict."""
         return {'b': b, 'flat': flat}
 
     def _get_layer_strategy(self, layer):
-        """
-        Get the appropriate layer parameters given the LRP layer required.
-        """
+        """Get the appropriate layer parameters given the LRP layer required."""
         if isinstance(layer, ConvLRP):
             return self._get_conv_layer_strategy(self.alpha, self.beta)
         elif isinstance(layer, DenseLRP):
@@ -76,6 +77,7 @@ class LRPStrategyBuilder:
         return None
 
     def build(self):
+        """Builds the strategy object based on the configuration given in this class."""
         tmp_lrp = LRP(self.model, layer=len(self.model.layers)-1, idx=0) # build LRP with no strategy to infer layers
     
         # first conv are set to ['b': True, 'flat': True]. 
@@ -97,24 +99,31 @@ class LRPStrategyBuilder:
 
 
 class LRPConfig:
+    """Simple object class for storing LRP configuration parameters."""
     def __init__(self, alpha:float=1, beta:float=1, epsilon:float=0.25, num_b_layers:int=2):
+        """Initialise object with params."""
         self.config = {'alpha': alpha, 'beta': beta, 'epsilon': epsilon, 'num_b_layers': num_b_layers}
 
     def get_params(self):
+        """Get params."""
         return self.config
 
     @staticmethod
     def build_default_config():
+        """Build new object based on default/good enough."""
         return LRPConfig(alpha=2, beta=1, epsilon=0.25, num_b_layers=2)
 
 class LRPModelFactory:
+    """Factory class which builds the new LRP model based on the given configuration parameters."""
     def __init__(self, model, lrp_config:LRPConfig, lrp_variable:str, output_idx:int=0):
+        """Init"""
         self.model = model
         self.lrp_config = lrp_config
         self.lrp_variable = lrp_variable
         self.output_idx = output_idx
 
     def build(self):
+        """Build the LRP model object."""
         output_layer = None
 
         model_outputs = self.model.output
