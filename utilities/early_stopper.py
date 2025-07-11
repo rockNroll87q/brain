@@ -7,14 +7,16 @@ Created on 01-03-2024
 Custom early stopping callback with a timer component.
 """
 
-import tensorflow as tf
 from datetime import timedelta
 from typing import Union
 import re
+import time
+
+import keras
 from loguru import logger
 
 
-class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
+class EarlyStoppingWithTimer(keras.callbacks.EarlyStopping):
     """
     Custom early stopping callback with a timer component.
 
@@ -92,7 +94,7 @@ class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
         logger.debug(f'EarlyStoppingWithTimer initialized with a timelimit of {self.timelimit}.')
 
         self.total_time = 0  # Total time taken so far
-        self.start_time = tf.timestamp()  # Start time of the current epoch
+        self.start_time = time.time()  # Start time of the current epoch
 
     @staticmethod
     def parse_duration(duration_str):
@@ -112,20 +114,20 @@ class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
     def on_epoch_begin(self, epoch, logs=None):
         """Callback called at the beginning of each epoch."""
         super().on_epoch_begin(epoch, logs)
-        self.start_time = tf.timestamp() # Mark the beginning time of the current epoch
+        self.start_time = time.time() # Mark the beginning time of the current epoch
 
     def on_epoch_end(self, epoch, logs=None):
         """Callback called at the end of each epoch. Calculates time and updates projections."""
         super().on_epoch_end(epoch, logs)
 
-        if self.model.stop_training: # The early stopping callback may have already triggered a stop
+        if self.model and self.model.stop_training: # The early stopping callback may have already triggered a stop
             return
         
         if isinstance(self.timelimit, str) and self.timelimit == 'inf':
             return
         
         # Calculate the time taken for this epoch and update the total time
-        epoch_time = tf.timestamp() - self.start_time
+        epoch_time = time.time() - self.start_time
         self.total_time += epoch_time
         # Calculate the average time per epoch based on the epochs completed so far
         average_epoch_time = self.total_time / (epoch + 1)
@@ -134,7 +136,8 @@ class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
         
         # Check if projected end of next epoch exceeds the timelimit. timelimit == 'inf' will never stop using time.
         if projected_time > self.timelimit:
-            self.model.stop_training = True
+            if self.model: 
+                self.model.stop_training = True
             if self.verbose > 0:
                 logger.warning(f"==Stopping training==: projected end time for next epoch ({projected_time:.2f} seconds) exceeds time limit of {self.timelimit} seconds.")
             
@@ -143,4 +146,5 @@ class EarlyStoppingWithTimer(tf.keras.callbacks.EarlyStopping):
             if self.restore_best_weights and self.best_weights is not None:
                 if self.verbose > 0:
                     logger.info('Restoring model weights from the end of the best epoch.')
-                self.model.set_weights(self.best_weights)
+                if self.model: 
+                    self.model.set_weights(self.best_weights)

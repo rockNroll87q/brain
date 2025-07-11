@@ -1,4 +1,3 @@
-
 """
 
 Created on Tuesday - September 03 2024
@@ -9,14 +8,8 @@ Created on Tuesday - September 03 2024
 Utility functions for nifti volume registration to template volumes.
 
 """
-
-
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import nibabel as nib
-import matplotlib.pyplot as plt
 import ants
 
 def load_volume(vol_path:Path, orient:str=None):
@@ -24,11 +17,10 @@ def load_volume(vol_path:Path, orient:str=None):
     Loads an ANTS image object from the volume path. Re-orients the volume to the given space. 
 
     Args:
-    - vol_path: Path object or str where the volume is on disk. .nii.gz file.
-    - orient: A string like 'LIA', or 'RAS' for the new orientation space. If None, then it does not re-orient.
+        vol_path: Path object or str where the volume is on disk. .nii.gz file.
+        orient: A string like 'LIA', or 'RAS' for the new orientation space. If None, then it does not re-orient.
 
-    Returns: 
-    - ANTS volume array object.
+    Returns: ANTS volume array object.
     """
     return ants.image_read(vol_path, reorient=orient)
 
@@ -37,11 +29,10 @@ def load_template_volume(template_path:str=None, orient:str=None):
     Loads an ANTS image template object. If template_path is None, then the default MNI template is returned.
 
     Args: 
-    - template_path: str or Path from where to load the template. If None, the default is loaded.
-    - orient: A string like 'LIA', or 'RAS' for the new orientation space. If None, then it does not re-orient.
+        template_path: str or Path from where to load the template. If None, the default is loaded.
+        orient: A string like 'LIA', or 'RAS' for the new orientation space. If None, then it does not re-orient.
 
-    Returns:
-    - MNI volume array object, if found.
+    Returns: MNI volume array object, if found.
     """
     if not template_path:
         template_path = ants.get_ants_data('mni')
@@ -54,11 +45,10 @@ def get_registration_transform(img, template):
     Both must be given. The transform is returned. Can be applied with `apply_registration_transform()`.
 
     Args:
-    - img: ANTS image array object.
-    - template: ANTS image array object for template. Can be retrieved using `load_template_volume()`.
+        img: ANTS image array object.
+        template: ANTS image array object for template. Can be retrieved using `load_template_volume()`.
 
-    Returns: 
-    - ANTS transform array object.
+    Returns: ANTS transform array object.
     """
     # MNI registration: T1w
     transformation = ants.registration(fixed = template,                 # template
@@ -74,11 +64,10 @@ def apply_registration_transform(target, transform):
     Returns the registered target volume.
 
     Args:
-    - target: ANTS volume array object to be transformed.
-    - transform: ANTS transform array object. Can be obtained from `get_registration_transform()`.
+        target: ANTS volume array object to be transformed.
+        transform: ANTS transform array object. Can be obtained from `get_registration_transform()`.
 
-    Returns:
-    - Registered array volume object.
+    Returns: Registered array volume object.
     """
     registered_target = ants.apply_transforms(moving = target,           # register the 'i_error_map'
                                         fixed = transform['warpedmovout'],
@@ -91,10 +80,9 @@ def to_numpy(img):
     Converts an ANTS volume object to a numpy array.
 
     Args:
-    - img: ANTS volume object. 
+        img: ANTS volume object. 
 
-    Returns:
-    - numpy array of volume
+    Returns: numpy array of volume
     """
     return img.numpy()
 
@@ -104,11 +92,11 @@ def from_numpy(img_arr, ref_vol=None):
     the given numpy array.
 
     Args:
-    - img_arr: 3D numpy array representing the brain volume.
-    - ref_vol: A reference volume to conform the numpy array.
+        img_arr: 3D numpy array representing the brain volume.
+        ref_vol: A reference volume to conform the numpy array.
     
     Returns:
-    - Loaded ANTS volume array object. 
+        Loaded ANTS volume array object. 
     """
     if ref_vol:
         return ants.from_numpy(img_arr,
@@ -122,11 +110,11 @@ def to_file(img, path_out):
     """
     Saves the given ANTS volume array to disk at path_out. Does not create the full path if it doesn't exist.
 
-    Args: 
-    - img: ANTS volume array object
-    - path_out: Path or str for where to save the volume.
+    Args:
+        img: ANTS volume array object
+        path_out: Path or str for where to save the volume.
 
     Returns:
-    - none
+        none
     """
     img.to_file(path_out)

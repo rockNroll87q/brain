@@ -8,7 +8,6 @@ Utility functions for manipulating models and model layers.
 """
 
 from tensorflow.keras.models import Model
-import numpy as np
 from loguru import logger
 
 def get_mid_layer(model, layer_name):

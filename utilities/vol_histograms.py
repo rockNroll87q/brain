@@ -11,7 +11,6 @@ Example (in container): python ./brain/utilities/vol_histograms.py
 """
 
 import argparse
-import os
 from pathlib import Path
 from time import localtime, strftime
 import random

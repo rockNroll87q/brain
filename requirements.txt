@@ -1,0 +1,26 @@
+keras==3.10.0 
+torchvision==0.22.1 
+torchio==0.20.17
+ipython
+typeguard
+pydantic<=2.11.7
+albumentations<=2.0.8
+opencv-python<=4.12.0
+nibabel<=5.3.2
+scipy<=1.15.3
+pingouin<=0.5.5
+loguru<=0.7.3
+wandb<=0.21.0
+pandas<=2.3.1
+seaborn<=0.13.2
+plotly<=6.2.0
+nvidia-ml-py
+antspyx<=0.6.1
+pydot<=4.0.1
+shap>=0.46.0
+PyYAML<=6.0.2
+psutil<=7.0.0
+pynvml<=12.0.0
+scikit-learn<=1.7.0
+scikit-image<=0.25.2  # for skimage
+tqdm<=4.67.1
