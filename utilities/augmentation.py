@@ -732,7 +732,7 @@ class RandomMotionAugment(ImageOnlyTransform):
 
         try:
             import torchio as tio
-        except ImportError as e:
+        except ImportError as _:
             logger.warning("torchio module is not currently installed. RandomMotionAugment will not have any effect.")
             self.badImport = True
         else:
@@ -762,7 +762,7 @@ class RandomGhostingAugment(ImageOnlyTransform):
 
         try:
             import torchio as tio
-        except ImportError as e:
+        except ImportError as _:
             logger.warning("torchio module is not currently installed. RandomGhostingAugment will not have any effect.")
             self.badImport = True
         else:

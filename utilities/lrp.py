@@ -17,11 +17,10 @@ from loguru import logger
 
 try:
     from explainability import LRP, LRPStrategy
-    from explainability.layers import StandardLRPLayer, ConvLRP, DenseLRP, SSFLRP, BottleNeckLRP
+    from explainability.layers import ConvLRP, DenseLRP, SSFLRP, BottleNeckLRP
 except ImportError as e:
     logger.error(f"Could not import explainability: {e}")
 
-import tensorflow as tf
 from tensorflow.keras.models import Model
 from .model_utils import freeze_model
 
