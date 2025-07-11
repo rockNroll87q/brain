@@ -24,7 +24,6 @@ will contain the tracked information
 
 import csv
 import sys
-import time
 import threading
 import argparse
 from datetime import datetime
