@@ -5,7 +5,9 @@ Created on Friday - July 11 2025
 """
 
 import unittest
+import os
 
+os.environ['KERAS_BACKEND'] = 'torch'
 import keras
 
 import layers

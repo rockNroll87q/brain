@@ -9,6 +9,9 @@ import sys
 import unittest
 import datetime
 import time
+import os
+
+os.environ['KERAS_BACKEND'] = 'torch'
 
 import numpy as np
 from loguru import logger
