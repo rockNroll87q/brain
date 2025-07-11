@@ -4,7 +4,25 @@ Copyright (c) 2022 Lara
 
 Modifications by Austin Dibble 2024, University of Glasgow
 Copyright (c) 2024 Austin Dibble
+
+## Example usage with a DataFrame:
+# Assuming df is your DataFrame and it contains the columns: 'y1', 'y2', 'y_pred1', 'y_pred2'
+metrics = LongitudinalMetricsWrapper(df=df, y1_col='y1', y2_col='y2', y_pred1_col='y_pred1', y_pred2_col='y_pred2')
+print(metrics.paper_table2())
+
+## Example usage with numpy arrays:
+y1 = np.array([...])
+y2 = np.array([...])
+y_pred1 = np.array([...])
+y_pred2 = np.array([...])
+metrics = LongitudinalMetricsWrapper(y1=y1, y2=y2, y_pred1=y_pred1, y_pred2=y_pred2)
+print(metrics.paper_table2())
 """
+import math
+import warnings
+
+import numpy as np
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 """
 == Original MIT License Here ==
@@ -31,16 +49,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 """
-
-import math
-
-import numpy as np
-import pandas as pd
-from sklearn.metrics import r2_score, mean_squared_error
-import numpy as np
-
-from sklearn.metrics import mean_absolute_error, mean_squared_error # Imports added by Austin Dibble
-
 
 # Copied from src.auxiliary from original source repository
 def categorize(
@@ -102,9 +110,7 @@ def maxMAE(
         np.append(np.array([18]), np.arange(25, 86, 10)), np.array([100])
     ),
 ):
-    r"""
-    Compute max MAE over given categories;
-    """
+    """Compute max MAE over given categories;"""
     # categorize values of y
     cat = categorize(y, bin=categories, int_bin=True)
 
@@ -144,9 +150,7 @@ def maxMAdE(
 
 
 def pearsons_r(y: np.ndarray, y_pred: np.ndarray):
-    r"""
-    Compute Pearson's correlation between two columns;
-    """
+    """Compute Pearson's correlation between two columns;"""
     y_np = y
     y_pred_np = y_pred
     corr_mat = np.corrcoef(y_np, y_pred_np)
@@ -154,25 +158,40 @@ def pearsons_r(y: np.ndarray, y_pred: np.ndarray):
 
 
 def RMSE(y: np.ndarray, y_pred: np.ndarray):
-    r"""
-    RMSE between true and predicted value;
-    """
+    """RMSE between true and predicted value;"""
     return math.sqrt(mean_squared_error(y, y_pred))
 
 
 def R_squared(y: np.ndarray, y_pred: np.ndarray):
-    r"""
-    R² between true and predicted value;
-    """
+    """R^2 between true and predicted value;"""
     return r2_score(y, y_pred)
 
 
 # == Code below here was completely added by Austin Dibble ==
 
 class BasicMetricsWrapper:
+    """
+    Wrapper class to make using the above-defined BASE metrics easier.
+    
+    Example:
+        wrapper = BasicMetricsWrapper(y_true=self.y_true, y_pred=self.y_pred)
+        expected_mae = np.mean(np.abs(self.y_pred - self.y_true))
+        assert wrapper.mae() == expected_mae 
+    """
+
     def __init__(
         self, y_true=None, y_pred=None, df=None
     ):
+        """
+        Initialize the class with comparison data.
+        
+        Args:
+            y_true (str, np.ndarray): True data. Can be a numpy array or a dataframe column name.
+            y_pred (str, np.ndarray): Predicted data. Can be a numpy array or a dataframe column name.
+            df (pd.DataFrame) (optional): Pandas DataFrame which contains the comparison data. Can be 
+                used if y_true and y_pred are strings which name the columns of this DF.
+
+        """
         if all(isinstance(arg, str) for arg in [y_true, y_pred]):
             if df is None:
                 raise ValueError(
@@ -198,28 +217,36 @@ class BasicMetricsWrapper:
         )
 
     def mae(self):
+        """Calculate the MAE between y_true and y_pred."""
         return mean_absolute_error(self.y_true, self.y_pred)
 
     def me(self):
+        """Calculate the ME between y_true and y_pred."""
         return np.mean(self.y_pred - self.y_true)
 
     def mse(self):
+        """Calculate the MSE between y_true and y_pred."""
         return mean_squared_error(self.y_true, self.y_pred)
 
     def rmse(self):
+        """Calculate the RMSE between y_true and y_pred."""
         return RMSE(self.y_true, self.y_pred)
 
     def r_squared(self):
+        """Calculate the R^2 between y_true and y_pred."""
         return R_squared(self.y_true, self.y_pred)
 
     def pearsons_r(self):
+        """Calculate the Pearson's r between y_true and y_pred."""
         return pearsons_r(self.y_true, self.y_pred)
 
     def maxMAE(self, categories=None):
+        """Calculate the max(MAE) between y_true and y_pred."""
         categories = self.default_bins if categories is None else categories
         return maxMAE(self.y_true, self.y_pred, categories=categories)
 
     def calculate_metrics(self):
+        """Calculate the all the non-longitudinal BASE metrics between y_true and y_pred."""
         metrics = {
             "MAE": self.mae(),
             "MSE": self.mse(),
@@ -233,7 +260,30 @@ class BasicMetricsWrapper:
 
 
 class LongitudinalMetricsWrapper:
+    """
+    Wrapper class for the BASE longitudinal metrics.
+    
+    Example:
+        wrapper = LongitudinalMetricsWrapper(
+            y1=self.y1, y2=self.y2, y_pred1=self.y_pred1, y_pred2=self.y_pred2
+        )
+        expected_mde = np.mean((self.y_pred2 - self.y_pred1) - (self.y2 - self.y1))
+        assert wrapper.mde() == expected_mde
+    """
+
     def __init__(self, y1, y2, y_pred1, y_pred2, df=None):
+        """
+        Initialize the class with comparison data.
+        
+        Args:
+            y1 (str, np.ndarray): True data point 1. Can be a numpy array or a dataframe column name.
+            y2 (str, np.ndarray): True data point 2. Can be a numpy array or a dataframe column name.
+            y_pred1 (str, np.ndarray): Predicted data point 1. Can be a numpy array or a dataframe column name.
+            y_pred2 (str, np.ndarray): Predicted data point 2. Can be a numpy array or a dataframe column name.
+            df (pd.DataFrame) (optional): Pandas DataFrame which contains the comparison data. Can be 
+                used if y1, y2, y_pred1, y_pred2 are strings which name the columns of this DF.
+
+        """
         if all(isinstance(arg, str) for arg in [y1, y2, y_pred1, y_pred2]):
             if df is None:
                 raise ValueError(
@@ -267,29 +317,37 @@ class LongitudinalMetricsWrapper:
         self.y_pred_delta_diff_abs = np.abs(self.y_pred_delta_diff)
 
     def mde(self):
+        """Calculate the MdE between y_pred1 and y_pred2"""
         return np.mean(self.y_pred_delta_diff)
 
     def mde_sd(self):
+        """Calculate the MdE-std between y_pred1 and y_pred2"""
         return np.std(self.y_pred_delta_diff)
 
     def made(self):
+        """Calculate the MAdE between y_pred1 and y_pred2"""
         return np.mean(self.y_pred_delta_diff_abs)
 
     def made_sd(self):
+        """Calculate the MAdE-std between y_pred1 and y_pred2"""
         return np.std(self.y_pred_delta_diff_abs)
 
     def maxMAdE_10y(self):
+        """Calculate the max(MAdE) 10y between y_true and y_pred"""
         return self.maxMAdE(
             self.y1, self.y_delta, self.y_pred_delta, categories=self.default_bins
         )
 
     def maxMAdE(self, y_cat, y, y_pred, categories):
+        """Calculate the max(MAdE) between y_pred1 and y_pred2"""
         return maxMAdE(y_cat, y, y_pred, categories=categories)
 
     def k(self):
+        """Calculate the k between y_pred1 and y_pred2"""
         return self.y_pred_delta / self.y_delta
 
     def calculate_metrics(self):
+        """Calculate all the longitudinal BASE metrics between y_pred1 and y_pred2"""
         metrics = {
             "MdE": self.mde(),
             "MdEsd": self.mde_sd(),
@@ -299,17 +357,3 @@ class LongitudinalMetricsWrapper:
             "k": self.k(),
         }
         return metrics
-
-
-# Example usage with a DataFrame:
-# Assuming df is your DataFrame and it contains the columns: 'y1', 'y2', 'y_pred1', 'y_pred2'
-# metrics = LongitudinalMetricsWrapper(df=df, y1_col='y1', y2_col='y2', y_pred1_col='y_pred1', y_pred2_col='y_pred2')
-# print(metrics.paper_table2())
-
-# Example usage with numpy arrays:
-# y1 = np.array([...])
-# y2 = np.array([...])
-# y_pred1 = np.array([...])
-# y_pred2 = np.array([...])
-# metrics = LongitudinalMetricsWrapper(y1=y1, y2=y2, y_pred1=y_pred1, y_pred2=y_pred2)
-# print(metrics.paper_table2())
