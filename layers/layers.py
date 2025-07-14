@@ -622,196 +622,267 @@ class Residual(keras.layers.Layer):
                 "channel_out_mult_factor": self.channel_out_mult_factor
                 }
 
-# class UpPlain(tf.keras.layers.Layer):
-#     def __init__(self, filter_num: int, dropout_rate: float, stride: int = 2, activation: str = 'relu', bn: bool = True,
-#                  groups=8, kernel_initializer='he_normal', kernel_regularizer=1.e-4, n_conv_row=1, mult_factor: int = 1,
-#                  **kwargs):
-#         """
-#         VGG-like encoder block for 3D tensors.
+class UpPlain(keras.layers.Layer):
+    """
+    VGG-like encoder block for 3D tensors.
+    Structure: - Input -> [Conv > BN > Activation] x 'n_conv_row' times > DS > Dropout > Activation
+    """
+    def __init__(self,
+                 filter_num:int,
+                 dropout_rate:float,
+                 stride:int = 2,
+                 activation:str = 'relu',
+                 bn:bool = True,
+                 kernel_initializer:str='he_normal',
+                 kernel_regularizer:float=1.e-4,
+                 n_conv_row=1,
+                 mult_factor: int = 1,
+                 channel_out_mult_factor:int = 4,
+                 **kwargs):
+        """
+        VGG-like encoder block for 3D tensors.
+        Structure: - Input -> [Conv > BN > Activation] x 'n_conv_row' times > DS > Dropout > Activation
 
-#         Structure: - Input -|> Conv > Conv Transpose > BN > Dropout -
+        Args:
+            filter_num: base number of used filters.
+            dropout_rate: used dropout rate. A 0 value means no dropout.
+            stride: applied downsampling stride.
+            activation: a registered tf2 activation function.
+            bn: whether use batch normalization (BN), Group Normalization (GN), or None
+            groups: the number of groups for Group Normalization.
+            kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
+            kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
+            mult_factor: middle filter multiplicative factor
+            channel_out_mult_factor: multiplicative factor for output channels
+            **kwargs: kwargs for parent class
+        """
+        super(UpPlain, self).__init__(**kwargs)
+        self.activation = activation
+        self.filter_num = filter_num
+        self.dropout_rate = dropout_rate
+        self.stride = stride
+        self.bn = bn
+        self.kernel_regularizer_value = kernel_regularizer
+        self.kernel_initializer = kernel_initializer
+        self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
+        self.n_conv_row = n_conv_row
+        self.mult_factor = mult_factor
+        self.channel_out_mult_factor = channel_out_mult_factor
 
-#         :param filter_num: base number of used filters.
-#         :param dropout_rate: used dropout rate. A 0 value means no dropout.
-#         :param stride: applied downsampling stride.
-#         :param activation: a registered tf2 activation function.
-#         :param bn: whether use batch normalization (BN), Group Normalization (GN), or None
-#         :param groups: the number of groups for Group Normalization.
-#         :param kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
-#         :param kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
-#         :param mult_factor: middle filter multiplicative factor
-#         """
-#         super(UpPlain, self).__init__(**kwargs)
-#         self.activation = activation
-#         self.filter_num = filter_num
-#         self.dropout_rate = dropout_rate
-#         self.stride = stride
-#         self.bn = bn
-#         kernel_regularizer = tf.keras.regularizers.l2(kernel_regularizer)
-#         self.n_conv_row = n_conv_row
-#         self.mult_factor = mult_factor
 
-#         # Define conv layers with Convs, BN, and activation
-#         self.convs = tf.keras.Sequential()
-#         for i in range(self.n_conv_row):
-#             self.convs.add(tf.keras.layers.Conv3D(filters=filter_num * self.mult_factor,  # Conv
-#                                                   kernel_size=(3, 3, 3),
-#                                                   strides=1,
-#                                                   padding='same',
-#                                                   kernel_initializer=kernel_initializer,
-#                                                   kernel_regularizer=kernel_regularizer,
-#                                                   ))
-#             if self.bn == 'BN':  # Batch norm
-#                 self.convs.add(tf.keras.layers.BatchNormalization())
-#             elif self.bn == 'GN':
-#                 self.convs.add(tf.keras.layers.GroupNormalization(groups=min(groups,filter_num)))
-#             self.convs.add(tf.keras.layers.Activation(self.activation))  # Activation
+    def build(self, input_shape):
+        """Build layers."""
+        # Define conv layers with Convs, BN, and activation
+        self.convs = keras.Sequential()
+        for i in range(self.n_conv_row):
+            self.convs.add(keras.layers.Conv3D(filters=self.filter_num * self.mult_factor,  # Conv
+                                                  kernel_size=(3, 3, 3),
+                                                  strides=1,
+                                                  padding='same',
+                                                  kernel_initializer=self.kernel_initializer,
+                                                  kernel_regularizer=self.kernel_regularizer,
+                                                  ))
+            
+            if self.bn:  # Batch norm
+                self.convs.add(keras.layers.BatchNormalization())
 
-#         self.up_conv = tf.keras.layers.Conv3DTranspose(filters=filter_num * 4,
-#                                                        kernel_size=(stride, stride, stride),
-#                                                        strides=stride,
-#                                                        padding='same',
-#                                                        kernel_initializer=kernel_initializer,
-#                                                        kernel_regularizer=kernel_regularizer
-#                                                        )
+            self.convs.add(keras.layers.Activation(self.activation))  # Activation
 
-#         self.dropout = tf.keras.layers.Dropout(rate=dropout_rate)
+        self.up_conv = keras.layers.Conv3DTranspose(filters=self.filter_num * self.channel_out_mult_factor,
+                                                       kernel_size=[self.stride] * 3,
+                                                       strides=self.stride,
+                                                       padding='same',
+                                                       kernel_initializer=self.kernel_initializer,
+                                                       kernel_regularizer=self.kernel_regularizer
+                                                       )
 
-#     def call(self, inputs, training=None, **kwargs):
-#         x = self.convs(inputs, training=training)
-#         if training:
-#             x = self.dropout(x)
-#         x = self.up_conv(x)
-#         x = getattr(tf.nn, self.activation)(x)
-#         return x
+        self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
-#     def get_config(self):
-#         return {"filter_num": self.filter_num,
-#                 "dropout_rate": self.dropout_rate,
-#                 "stride": self.stride,
-#                 "activation": self.activation,
-#                 "bn": self.bn,
-#                 "n_conv_row": self.n_conv_row,
-#                 "mult_factor": self.mult_factor
-#                 }
-
-#     @classmethod
-#     def from_config(cls, config, custom_objects=None):
-#         return cls(**config)
+    def call(self, inputs, training=None, **kwargs):
+        """Forward pass."""
+        x = self.convs(inputs, training=training)
+        if training:
+            x = self.dropout(x)
+        x = self.up_conv(x)
+        x = getattr(keras.ops, self.activation)(x)
+        return x
     
-# class ExpandNeck(tf.keras.layers.Layer):
-#     def __init__(self, filter_num: int, dropout_rate: float = 0.1, stride: int = 2, activation: str = 'relu', bn: bool = True,
-#                  groups: int = 8, kernel_initializer: str = 'he_normal', kernel_regularizer: float = 1.e-4,
-#                  n_conv_row: int = 1, mult_factor: int = 4, downsampling: str = 'conv', **kwargs):
-#         """
-#         ResNet-like encoder bottleneck block for 3D tensors.
-#         Structure: - Input -|> Conv > BN > Conv > BN > Conv > BN > Dropout > Add -
-#                             \___________________> Conv > BN >________________/
-#         :param filter_num: base number of used filters.
-#         :param dropout_rate: used dropout rate. A 0 value means no dropout.
-#         :param stride: applied downsampling stride.
-#         :param activation: a registered tf2 activation function.
-#         :param bn: whether use batch normalization (BN), Group Normalization (GN), or None
-#         :param groups: the number of groups for Group Normalization.
-#         :param kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
-#         :param kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
-#         :param mult_factor: middle filter multiplicative factor
-#         """
-#         super(ExpandNeck, self).__init__(**kwargs)
-#         self.activation = activation
-#         self.filter_num = filter_num
-#         self.dropout_rate = dropout_rate
-#         self.stride = stride
-#         self.bn = bn
-#         self.mult_factor = mult_factor
-#         self.downsampling = downsampling
 
-#         kernel_regularizer = tf.keras.regularizers.l2(kernel_regularizer)
+    def compute_output_shape(self, input_shape):
+        """Compute the output shape of this layer."""
+        batch_size, d, h, w, c = input_shape
 
-#         self.conv1 = tf.keras.layers.Conv3D(filters=filter_num,
-#                                             kernel_size=(1, 1, 1),
-#                                             strides=1,
-#                                             padding='same',
-#                                             kernel_initializer=kernel_initializer,
-#                                             kernel_regularizer=kernel_regularizer
-#                                             )
-#         self.conv2 = tf.keras.layers.Conv3D(filters=filter_num * self.mult_factor,
-#                                             kernel_size=(3, 3, 3),
-#                                             strides=stride,
-#                                             padding='same',
-#                                             kernel_initializer=kernel_initializer,
-#                                             kernel_regularizer=kernel_regularizer
-#                                             )
-#         self.conv3 = tf.keras.layers.Conv3D(filters=filter_num,
-#                                             kernel_size=(1, 1, 1),
-#                                             strides=1,
-#                                             padding='same',
-#                                             kernel_initializer=kernel_initializer,
-#                                             kernel_regularizer=kernel_regularizer
-#                                             )
+        d_out = d * self.stride if d is not None else None
+        h_out = h * self.stride if h is not None else None
+        w_out = w * self.stride if w is not None else None
 
-#         if self.bn == 'BN':
-#             self.bn1 = tf.keras.layers.BatchNormalization()
-#             self.bn2 = tf.keras.layers.BatchNormalization()
-#             self.bn3 = tf.keras.layers.BatchNormalization()
-#         elif self.bn == 'GN':
-#             self.bn1 = tf.keras.layers.GroupNormalization(groups=min(groups,filter_num))
-#             self.bn2 = tf.keras.layers.GroupNormalization(groups=min(groups,filter_num))
-#             self.bn3 = tf.keras.layers.GroupNormalization(groups=min(groups,filter_num))
+        c_out = self.filter_num * self.channel_out_mult_factor
 
-#         self.dropout = tf.keras.layers.Dropout(rate=dropout_rate)
+        return (batch_size, d_out, h_out, w_out, c_out)
 
-#         # Downsampling
-#         self.downsample = tf.keras.Sequential()
-#         if downsampling == 'conv':
-#             self.downsample.add(tf.keras.layers.Conv3D(filters = filter_num,
-#                                                     kernel_size = (1, 1, 1),
-#                                                     strides = self.stride,
-#                                                     padding = 'same',
-#                                                     kernel_initializer = kernel_initializer,
-#                                                     kernel_regularizer = kernel_regularizer,
-#                                                     ))
-#         elif downsampling == 'pooling':
-#             self.downsample.add(tf.keras.layers.MaxPool3D(pool_size = self.stride))
-#         else:
-#             logger.error(f'ERROR 19.0: config.network.downsampling {downsampling} not recognised!')
-#             sys.exit(0)
+    def get_config(self):
+        """Get serializable config"""
+        return {
+                "filter_num": self.filter_num,
+                "dropout_rate": self.dropout_rate,
+                "stride": self.stride,
+                "activation": self.activation,
+                "bn": self.bn,
+                "mult_factor": self.mult_factor,
+                "channel_out_mult_factor": self.channel_out_mult_factor,
+                "kernel_initializer": self.kernel_initializer,
+                "kernel_regularizer": self.kernel_regularizer_value
+                }
+    
+class ExpandNeck(keras.layers.Layer):
+    """
+    ResNet-like encoder "expand" neck block for 3D tensors.
 
-#         if self.bn == 'BN':
-#             self.downsample.add(tf.keras.layers.BatchNormalization())
-#         elif self.bn == 'GN':
-#             self.downsample.add(tf.keras.layers.GroupNormalization(groups=min(groups,filter_num)))
+    Structure: - Input -|> Conv > BN > Conv > BN > Conv > BN > Dropout > Add -
+                    |___________________> Conv > BN >________________/
+    """
+    def __init__(self,
+                 filter_num:int,
+                 dropout_rate:float = 0.1,
+                 stride:int = 2,
+                 activation:str = 'relu',
+                 bn:bool = True,
+                 kernel_initializer:str = 'he_normal',
+                 kernel_regularizer:float = 1.e-4,
+                 mult_factor:int = 1,
+                 downsampling:str = 'conv',
+                 channel_out_mult_factor:int = 1,
+                 **kwargs
+                 ):
+        """
+        ResNet-like encoder "expand" block for 3D tensors.
+        Structure: - Input -|> Conv > BN > Conv > BN > Conv > BN > Dropout > Add -
+                            |___________________> Conv > BN >________________/
 
+        Args:
+            filter_num: base number of used filters.
+            dropout_rate: used dropout rate. A 0 value means no dropout.
+            stride: applied downsampling stride.
+            activation: a registered tf2 activation function.
+            bn: whether use batch normalization (BN), Group Normalization (GN), or None
+            kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
+            kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
+            mult_factor: middle filter multiplicative factor
+            downsampling: downsampling type (conv or pool)
+            channel_out_mult_factor: multiplicative factor for output channels
+            kwargs: kwargs for parent class
+        """
+        super(ExpandNeck, self).__init__(**kwargs)
+        self.activation = activation
+        self.filter_num = filter_num
+        self.dropout_rate = dropout_rate
+        self.stride = stride
+        self.bn = bn
+        self.mult_factor = mult_factor
+        self.downsampling = downsampling
+        self.channel_out_mult_factor = channel_out_mult_factor
 
-#     def call(self, inputs, training=None, **kwargs):
-#         residual = self.downsample(inputs)
+        self.kernel_regularizer_value = kernel_regularizer
+        self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
+        self.kernel_initializer = kernel_initializer
 
-#         x = self.conv1(inputs)
-#         if self.bn in ['BN', 'GN']:
-#             x = self.bn1(x, training=training)
-#         x = getattr(tf.nn, self.activation)(x)
-#         x = self.conv2(x)
-#         if self.bn in ['BN', 'GN']:
-#             x = self.bn2(x, training=training)
-#         x = getattr(tf.nn, self.activation)(x)
-#         x = self.conv3(x)
-#         if self.bn in ['BN', 'GN']:
-#             x = self.bn3(x, training=training)
-#         if training:
-#             x = self.dropout(x)
-#         output = getattr(tf.nn, self.activation)(tf.keras.layers.add([residual, x]))
+    def build(self, input_shape):
+        """Build layers."""
+        self.conv1 = keras.layers.Conv3D(filters=self.filter_num,
+                                            kernel_size=(1, 1, 1),
+                                            strides=1,
+                                            padding='same',
+                                            kernel_initializer=self.kernel_initializer,
+                                            kernel_regularizer=self.kernel_regularizer
+                                            )
+        
+        self.conv2 = keras.layers.Conv3D(filters=self.filter_num * self.mult_factor,
+                                            kernel_size=(3, 3, 3),
+                                            strides=self.stride,
+                                            padding='same',
+                                            kernel_initializer=self.kernel_initializer,
+                                            kernel_regularizer=self.kernel_regularizer
+                                            )
+        
+        self.conv3 = keras.layers.Conv3D(filters=self.filter_num * self.channel_out_mult_factor,
+                                            kernel_size=(1, 1, 1),
+                                            strides=1,
+                                            padding='same',
+                                            kernel_initializer=self.kernel_initializer,
+                                            kernel_regularizer=self.kernel_regularizer
+                                            )
 
-#         return output
+        if self.bn:
+            self.bn1 = keras.layers.BatchNormalization()
+            self.bn2 = keras.layers.BatchNormalization()
+            self.bn3 = keras.layers.BatchNormalization()
 
-#     def get_config(self):
-#         return {"filter_num": self.filter_num,
-#                 "dropout_rate": self.dropout_rate,
-#                 "stride": self.stride,
-#                 "activation": self.activation,
-#                 "bn": self.bn,
-#                 "mult_factor": self.mult_factor
-#                 }
+        self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
-#     @classmethod
-#     def from_config(cls, config, custom_objects=None):
-#         return cls(**config)
+        # Downsampling
+        self.downsample = keras.Sequential()
+        if self.downsampling == 'conv':
+            self.downsample.add(keras.layers.Conv3D(filters = self.filter_num * self.channel_out_mult_factor,
+                                                    kernel_size = (1, 1, 1),
+                                                    strides = self.stride,
+                                                    padding = 'same',
+                                                    kernel_initializer = self.kernel_initializer,
+                                                    kernel_regularizer = self.kernel_regularizer,
+                                                    ))
+        elif self.downsampling == 'pooling':
+            self.downsample.add(keras.layers.MaxPool3D(pool_size = self.stride))
+        else:
+            raise ValueError(f'Downsampling {self.downsampling} not recognised!')
+
+        if self.bn:
+            self.downsample.add(keras.layers.BatchNormalization())
+
+    def call(self, inputs, training=None, **kwargs):
+        """Forward pass."""
+        residual = self.downsample(inputs)
+
+        x = self.conv1(inputs)
+        if self.bn in ['BN', 'GN']:
+            x = self.bn1(x, training=training)
+        x = getattr(keras.ops, self.activation)(x)
+
+        x = self.conv2(x)
+        if self.bn in ['BN', 'GN']:
+            x = self.bn2(x, training=training)
+        x = getattr(keras.ops, self.activation)(x)
+
+        x = self.conv3(x)
+        if self.bn in ['BN', 'GN']:
+            x = self.bn3(x, training=training)
+
+        if training:
+            x = self.dropout(x)
+        output = getattr(keras.ops, self.activation)(keras.layers.add([residual, x]))
+
+        return output
+
+    def compute_output_shape(self, input_shape):
+        """Compute the output shape of this layer."""
+        batch_size, d, h, w, c = input_shape
+
+        d_out = d // self.stride if d is not None else None
+        h_out = h // self.stride if h is not None else None
+        w_out = w // self.stride if w is not None else None
+
+        c_out = self.filter_num * self.channel_out_mult_factor
+
+        return (batch_size, d_out, h_out, w_out, c_out)
+
+    def get_config(self):
+        """Get serializable config"""
+        return {
+                "filter_num": self.filter_num,
+                "dropout_rate": self.dropout_rate,
+                "stride": self.stride,
+                "activation": self.activation,
+                "bn": self.bn,
+                "mult_factor": self.mult_factor,
+                "channel_out_mult_factor": self.channel_out_mult_factor,
+                "kernel_initializer": self.kernel_initializer,
+                "kernel_regularizer": self.kernel_regularizer_value
+                }

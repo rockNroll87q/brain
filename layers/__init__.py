@@ -1,11 +1,13 @@
 
 from .layers import BottleNeck, UpBottleNeck, SSFAdaLayer, \
-                    Plain, Residual
+                    Plain, Residual, UpPlain, ExpandNeck
 
 __all__ = [
     "BottleNeck",
     "UpBottleNeck",
     "SSFAdaLayer",
     "Plain",
-    "Residual"
+    "Residual",
+    "UpPlain",
+    "ExpandNeck"
 ]
