@@ -124,6 +124,18 @@ class BottleNeck(keras.layers.Layer):
 
         return output
     
+    def compute_output_shape(self, input_shape):
+        """Compute the output shape of this layer."""
+        batch_size, d, h, w, c = input_shape
+
+        d_out = d // self.stride if d is not None else None
+        h_out = h // self.stride if h is not None else None
+        w_out = w // self.stride if w is not None else None
+
+        c_out = self.filter_num * self.channel_out_mult_factor
+
+        return (batch_size, d_out, h_out, w_out, c_out)
+    
     def get_config(self):
         """Serialize our config options."""
 
@@ -187,37 +199,40 @@ class UpBottleNeck(keras.layers.Layer):
         self.bn = bn
         self.mult_factor = mult_factor
         self.channel_out_mult_factor = channel_out_mult_factor
+        self.kernel_initializer = kernel_initializer
         self.kernel_regularizer_value = kernel_regularizer
-        kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
+        self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
 
-        self.conv1 = keras.layers.Conv3D(filters=filter_num,
+    def build(self, input_shape):
+        """Build layers."""
+        self.conv1 = keras.layers.Conv3D(filters=self.filter_num,
                                             kernel_size=(1, 1, 1),
                                             strides=1,
                                             padding='same',
-                                            kernel_initializer=kernel_initializer,
-                                            kernel_regularizer=kernel_regularizer
+                                            kernel_initializer=self.kernel_initializer,
+                                            kernel_regularizer=self.kernel_regularizer
                                             )
-        self.conv2_up = keras.layers.Conv3DTranspose(filters=filter_num * self.mult_factor,
+        self.conv2_up = keras.layers.Conv3DTranspose(filters=self.filter_num * self.mult_factor,
                                                         kernel_size=(3, 3, 3),
-                                                        strides=stride,
+                                                        strides=self.stride,
                                                         padding='same',
-                                                        kernel_initializer=kernel_initializer,
-                                                        kernel_regularizer=kernel_regularizer
+                                                        kernel_initializer=self.kernel_initializer,
+                                                        kernel_regularizer=self.kernel_regularizer
                                                         )
-        self.conv3 = keras.layers.Conv3D(filters=filter_num * self.channel_out_mult_factor,
+        self.conv3 = keras.layers.Conv3D(filters=self.filter_num * self.channel_out_mult_factor,
                                             kernel_size=(1, 1, 1),
                                             strides=1,
                                             padding='same',
-                                            kernel_initializer=kernel_initializer,
-                                            kernel_regularizer=kernel_regularizer)
+                                            kernel_initializer=self.kernel_initializer,
+                                            kernel_regularizer=self.kernel_regularizer)
 
         self.upsample = keras.Sequential()
         self.upsample.add(
-            keras.layers.Conv3DTranspose(filters=filter_num * self.channel_out_mult_factor,
+            keras.layers.Conv3DTranspose(filters=self.filter_num * self.channel_out_mult_factor,
                                          kernel_size=(1, 1, 1),
-                                         strides=stride,
-                                         kernel_initializer=kernel_initializer,
-                                         kernel_regularizer=kernel_regularizer
+                                         strides=self.stride,
+                                         kernel_initializer=self.kernel_initializer,
+                                         kernel_regularizer=self.kernel_regularizer
                                         )
                         )
         if self.bn:
@@ -228,7 +243,7 @@ class UpBottleNeck(keras.layers.Layer):
             self.bn2 = keras.layers.BatchNormalization()
             self.bn3 = keras.layers.BatchNormalization()
 
-        self.dropout = keras.layers.Dropout(rate=dropout_rate)
+        self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
     def call(self, inputs, training=None, **kwargs):
         """Forward pass."""
@@ -255,16 +270,17 @@ class UpBottleNeck(keras.layers.Layer):
 
         return output
 
-    # def compute_output_shape(self, input_shape):
-    #     batch_size, d, h, w, c = input_shape
+    def compute_output_shape(self, input_shape):
+        """Compute the output shape of this layer."""
+        batch_size, d, h, w, c = input_shape
 
-    #     d_out = d * self.stride if d is not None else None
-    #     h_out = h * self.stride if h is not None else None
-    #     w_out = w * self.stride if w is not None else None
+        d_out = d * self.stride if d is not None else None
+        h_out = h * self.stride if h is not None else None
+        w_out = w * self.stride if w is not None else None
 
-    #     c_out = self.filter_num * 4
+        c_out = self.filter_num * self.channel_out_mult_factor
 
-    #     return (batch_size, d_out, h_out, w_out, c_out)
+        return (batch_size, d_out, h_out, w_out, c_out)
         
     def get_config(self):
         """Get serializable config"""
@@ -275,5 +291,75 @@ class UpBottleNeck(keras.layers.Layer):
                 "activation": self.activation,
                 "bn": self.bn,
                 "mult_factor": self.mult_factor,
-                "channel_out_mult_factor": self.channel_out_mult_factor
+                "channel_out_mult_factor": self.channel_out_mult_factor,
+                "kernel_initializer": self.kernel_initializer,
+                "kernel_regularizer": self.kernel_regularizer_value
                 }
+    
+class SSFAdaLayer(keras.layers.Layer):
+    """
+    Scale-Shift Feature Layers from https://arxiv.org/abs/2210.08823
+    Intended for high-efficiency fine-tuning as a very simple form of FiLM layer.
+    Intended to be added (during fine-tuning) between frozen model layers to 
+    rescale the layer channels.
+    """
+
+    def __init__(self, **kwargs):
+        """
+        Scale-Shift Feature Layers.
+        
+        Args:
+            **kwargs: Any kwargs to pass to parent
+        """
+        super(SSFAdaLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        """Build weights using layer input shape."""
+
+        self.num_features = input_shape[-1]
+        self.scale = self.add_weight(
+            name=self.name + '_scale',
+            shape=(self.num_features,),
+            initializer=keras.initializers.RandomNormal(mean=1.0, stddev=0.02),
+            trainable=True
+        )
+        self.shift = self.add_weight(
+            name=self.name + '_shift',
+            shape=(self.num_features,),
+            initializer=keras.initializers.RandomNormal(mean=0.0, stddev=0.02),
+            trainable=True
+        )
+
+        self.reshape_target = [1, self.num_features] + [1] * (len(input_shape) - 2)
+        self.reshape_scale = keras.layers.Reshape(self.reshape_target)
+        self.reshape_shift = keras.layers.Reshape(self.reshape_target)
+
+    def call(self, inputs):
+        """
+        Apply learned scale and shift to the input tensor.
+
+        Behavior depends on the layout of the input:
+        - If the last dimension matches the number of features (channels_last),
+        applies elementwise scale and shift directly.
+        - If the second dimension matches the number of features (channels_first),
+        reshapes the scale and shift parameters to broadcast over spatial dims.
+
+        Args:
+            inputs: Input tensor of shape (..., num_features) or (batch, num_features, ...)
+
+        Returns:
+            Tensor with the same shape as `inputs`, scaled and shifted.
+
+        Raises:
+            ValueError: If input shape is incompatible with the scale/shift dimensions.
+        """
+        if inputs.shape[-1] == self.num_features:
+            # channels_last format or dense output
+            return inputs * self.scale + self.shift
+        elif inputs.shape[1] == self.num_features:
+            # channels_first format
+            scale = self.reshape_scale(self.scale)
+            shift = self.reshape_shift(self.shift)
+            return inputs * scale + shift
+        else:
+            raise ValueError("Input shape incompatible with scale/shift dimensions.")
