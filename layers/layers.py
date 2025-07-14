@@ -652,6 +652,7 @@ class UpPlain(keras.layers.Layer):
             groups: the number of groups for Group Normalization.
             kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
             kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
+            n_conv_row: number of convolutional repeats
             mult_factor: middle filter multiplicative factor
             channel_out_mult_factor: multiplicative factor for output channels
             **kwargs: kwargs for parent class

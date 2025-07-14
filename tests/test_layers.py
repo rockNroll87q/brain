@@ -131,12 +131,12 @@ class TestUpBottleNeckLayer(BaseBottleNeckTest, unittest.TestCase):
 # *                    Plain                    *
 # ===============================================
 class TestPlainLayer(BaseBottleNeckTest, unittest.TestCase):
-    """Run tests for Plain layer.."""
+    """Run tests for Plain layer."""
     LAYER_CLASS = layers.Plain
 
     def _spatial_scale(self, stride):
-        """Spatial scale is downsampled.."""
-        return 1 / stride  # Upsampling
+        """Spatial scale is downsampled."""
+        return 1 / stride  # Downsampling
     
 # ===============================================
 # *                    Residual                 *
@@ -146,8 +146,8 @@ class TestResidualLayer(BaseBottleNeckTest, unittest.TestCase):
     LAYER_CLASS = layers.Residual
 
     def _spatial_scale(self, stride):
-        """Spatial scale is downsampled.."""
-        return 1 / stride  # Upsampling
+        """Spatial scale is downsampled."""
+        return 1 / stride  # Downsampling
     
 # ===============================================
 # *                    Residual                 *
@@ -157,7 +157,7 @@ class TestUpPlainLayer(BaseBottleNeckTest, unittest.TestCase):
     LAYER_CLASS = layers.UpPlain
 
     def _spatial_scale(self, stride):
-        """Spatial scale is downsampled.."""
+        """Spatial scale is upsampled."""
         return stride  # Upsampling
 
 # ===============================================
@@ -169,7 +169,7 @@ class TestExpandNeckLayer(BaseBottleNeckTest, unittest.TestCase):
 
     def _spatial_scale(self, stride):
         """Spatial scale is downsampled.."""
-        return 1 / stride  # Upsampling
+        return 1 / stride  # Downsampling
 
 # ===============================================
 # *                SSFAdaLayer                  *
