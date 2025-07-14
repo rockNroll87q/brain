@@ -1,6 +1,7 @@
 
-from .layers import BottleNeck
+from .layers import BottleNeck, UpBottleNeck
 
 __all__ = [
-    "BottleNeck"
+    "BottleNeck",
+    "UpBottleNeck"
 ]

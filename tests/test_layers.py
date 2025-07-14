@@ -101,6 +101,74 @@ class TestLayers(unittest.TestCase):
     # ===============================================
     # *                BottleNeck                   *
     # ===============================================
+    def testUpBottleNeck_output_shape(self):
+        """Test output shape and type of the BottleNeck layer"""
+        bottleneck = layers.UpBottleNeck(
+            filter_num=self.filter_num,
+            dropout_rate=self.dropout_rate,
+            stride=self.stride
+        )
+        output = bottleneck(self.input_tensor)
+
+        expected_shape = (
+            self.input_shape[0],
+            self.input_shape[1] * self.stride,
+            self.input_shape[2] * self.stride,
+            self.input_shape[3] * self.stride,
+            self.filter_num * bottleneck.channel_out_mult_factor
+        )
+
+        self.assertEqual(output.shape, expected_shape)
+
+        # Try modifying channel multiplier
+        bottleneck = layers.UpBottleNeck(
+            filter_num=self.filter_num,
+            dropout_rate=self.dropout_rate,
+            stride=self.stride,
+            channel_out_mult_factor=1
+        )
+        output = bottleneck(self.input_tensor)
+
+        expected_shape = (
+            self.input_shape[0],
+            self.input_shape[1] * self.stride,
+            self.input_shape[2] * self.stride,
+            self.input_shape[3] * self.stride,
+            self.filter_num * bottleneck.channel_out_mult_factor
+        )
+        self.assertEqual(output.shape, expected_shape)
+
+    def testUpBottleNeck_compilation(self):
+        """Test if the layer integrates into a simple model and compiles"""
+        inputs = keras.Input(shape=self.input_shape[1:])
+        x = layers.UpBottleNeck(
+            filter_num=self.filter_num,
+            dropout_rate=self.dropout_rate,
+            stride=self.stride
+        )(inputs)
+        model = keras.Model(inputs, x)
+        try:
+            model.compile(optimizer='adam', loss='mse')
+        except Exception as e:
+            self.fail(f'Model compilation failed: {e}')
+
+    def testUpBottleNeck_no_downsampling(self):
+        """Test behavior when stride=1 (no spatial downsampling)"""
+        bottleneck = layers.UpBottleNeck(
+            filter_num=self.filter_num,
+            dropout_rate=self.dropout_rate,
+            stride=1
+        )
+        output = bottleneck(self.input_tensor)
+
+        expected_shape = (
+            self.input_shape[0],
+            self.input_shape[1],
+            self.input_shape[2],
+            self.input_shape[3],
+            self.filter_num * bottleneck.channel_out_mult_factor
+        )
+        self.assertEqual(output.shape, expected_shape)
 
 if __name__ == "__main__":
     unittest.main()
