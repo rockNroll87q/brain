@@ -13,245 +13,135 @@ import numpy as np
 
 import layers
 
-# ===============================================
-# *                BottleNeck                   *
-# ===============================================
-class TestBottleNeckLayer(unittest.TestCase):
-    """
-    A unittest module for testing all code relating to the
-    custom layers in the model.
-    """
+
+class BaseBottleNeckTest():
+    """Base class to consolidate common logic for bottleneck layer tests."""
+
+    LAYER_CLASS = None
 
     def setUp(self):
-        """Setup variables for the unittest module"""
-        self.input_shape = (1, 32, 32, 32, 16)  # Batch, Depth, Height, Width, Channels
+        """Set up."""
+        self.input_shape = (1, 32, 32, 32, 16)
         self.filter_num = 32
         self.dropout_rate = 0.1
         self.stride = 2
         self.input_tensor = keras.random.normal(self.input_shape)
 
-
-    def testBottleNeck_output_shape(self):
-        """Test output shape and type of the BottleNeck layer"""
-        bottleneck = layers.BottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride
-        )
-        output = bottleneck(self.input_tensor)
-
-        expected_shape = (
-            self.input_shape[0],
-            self.input_shape[1] // self.stride,
-            self.input_shape[2] // self.stride,
-            self.input_shape[3] // self.stride,
-            self.filter_num * bottleneck.channel_out_mult_factor
-        )
-
-        self.assertEqual(output.shape, expected_shape)
-        self.assertEqual(expected_shape, bottleneck.compute_output_shape(self.input_tensor.shape))
-
-        # Try modifying channel multiplier
-        bottleneck = layers.BottleNeck(
+    def _build_layer(self, **kwargs):
+        """Build a layer."""
+        return self.LAYER_CLASS(
             filter_num=self.filter_num,
             dropout_rate=self.dropout_rate,
             stride=self.stride,
-            channel_out_mult_factor=1
+            **kwargs
         )
-        output = bottleneck(self.input_tensor)
 
-        expected_shape = (
-            self.input_shape[0],
-            self.input_shape[1] // self.stride,
-            self.input_shape[2] // self.stride,
-            self.input_shape[3] // self.stride,
-            self.filter_num * bottleneck.channel_out_mult_factor
+    def _expected_shape(self, input_shape, stride, channel_mult):
+        """Calculated the expected output shape"""
+        scale = self._spatial_scale(stride)
+        return (
+            input_shape[0],
+            int(input_shape[1] * scale),
+            int(input_shape[2] * scale),
+            int(input_shape[3] * scale),
+            self.filter_num * channel_mult
         )
-        self.assertEqual(output.shape, expected_shape)
-        self.assertEqual(expected_shape, bottleneck.compute_output_shape(self.input_tensor.shape))
 
+    def _spatial_scale(self, stride):
+        """Not implemented."""
+        raise NotImplementedError("Subclasses must implement _spatial_scale")
 
-    def testBottleNeck_compilation(self):
-        """Test if the layer integrates into a simple model and compiles"""
+    def test_output_shape_and_type(self):
+        """Output shapes tess.t"""
+        for channel_mult in [4, 2, 1]:
+            layer = self._build_layer(channel_out_mult_factor=channel_mult)
+            output = layer(self.input_tensor)
+            expected = self._expected_shape(self.input_shape, self.stride, channel_mult)
+
+            self.assertEqual(output.shape, expected)
+            self.assertEqual(layer.compute_output_shape(self.input_tensor.shape), expected)
+
+    def test_model_compilation(self):
+        """Model compile test."""
         inputs = keras.Input(shape=self.input_shape[1:])
-        x = layers.BottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride
-        )(inputs)
+        x = self._build_layer()(inputs)
         model = keras.Model(inputs, x)
         try:
             model.compile(optimizer='adam', loss='mse')
         except Exception as e:
             self.fail(f'Model compilation failed: {e}')
 
-    def testBottleNeck_no_downsampling(self):
-        """Test behavior when stride=1 (no spatial downsampling)"""
-        bottleneck = layers.BottleNeck(
+    def test_no_spatial_change(self):
+        """Identity test."""
+        layer = self.LAYER_CLASS(
             filter_num=self.filter_num,
             dropout_rate=self.dropout_rate,
             stride=1
         )
-        output = bottleneck(self.input_tensor)
-
-        expected_shape = (
+        output = layer(self.input_tensor)
+        expected = (
             self.input_shape[0],
             self.input_shape[1],
             self.input_shape[2],
             self.input_shape[3],
-            self.filter_num * bottleneck.channel_out_mult_factor
+            self.filter_num * layer.channel_out_mult_factor
         )
-        self.assertEqual(output.shape, expected_shape)
+        self.assertEqual(output.shape, expected)
 
-    def testBottleNeckModelWithUnknownShapes_build_compile_train(self):
-        """Test building, compiling, and one-step training of a model with unknown input shapes"""
-
-        # Create Input layer with dynamic spatial dimensions
-        input_layer = keras.Input(shape=(None, None, None, 16))  # Depth, Height, Width, Channels
-
-        # Add the BottleNeck layer
-        x = layers.BottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride
-        )(input_layer)
-
-        # Add a global pooling and dense for simplicity
+    def test_model_with_unknown_shapes(self):
+        """Test unknown shapes on layer."""
+        input_layer = keras.Input(shape=(None, None, None, 16))
+        x = self._build_layer()(input_layer)
         x = keras.layers.GlobalAveragePooling3D()(x)
         output = keras.layers.Dense(1)(x)
 
-        # Create model
         model = keras.Model(inputs=input_layer, outputs=output)
-
-        # Compile model
         model.compile(optimizer="adam", loss="mse")
 
-        # Generate dummy input and target data (must match input shape)
         dummy_input = keras.random.normal((1, 32, 32, 32, 16))
         dummy_target = keras.random.normal((1, 1))
 
-        # Fit for one step
         model.fit(dummy_input, dummy_target, epochs=1, steps_per_epoch=1, verbose=0)
+
+
+# ===============================================
+# *                BottleNeck                   *
+# ===============================================
+class TestBottleNeckLayer(BaseBottleNeckTest, unittest.TestCase):
+    """Test BottleNeck"""
+    LAYER_CLASS = layers.BottleNeck
+
+    def _spatial_scale(self, stride):
+        """Spatial scale is downsampled."""
+        return 1 / stride  # Downsampling
+
 
 # ===============================================
 # *                UpBottleNeck                 *
 # ===============================================
-class TestUpBottleNeckLayer(unittest.TestCase):
-    """
-    A unittest module for testing all code relating to the
-    custom layers in the model.
-    """
+class TestUpBottleNeckLayer(BaseBottleNeckTest, unittest.TestCase):
+    """Run tests for UpBottleNeckLayer."""
+    LAYER_CLASS = layers.UpBottleNeck
 
-    def setUp(self):
-        """Setup variables for the unittest module"""
-        self.input_shape = (1, 32, 32, 32, 16)  # Batch, Depth, Height, Width, Channels
-        self.filter_num = 32
-        self.dropout_rate = 0.1
-        self.stride = 2
-        self.input_tensor = keras.random.normal(self.input_shape)
+    def _spatial_scale(self, stride):
+        """Spatial scale is upsampled."""
+        return stride  # Upsampling
+    
+# ===============================================
+# *                    Plain                    *
+# ===============================================
+class TestPlainLayer(BaseBottleNeckTest, unittest.TestCase):
+    """Run tests for Plain layer.."""
+    LAYER_CLASS = layers.Plain
 
-    def testUpBottleNeck_output_shape(self):
-        """Test output shape and type of the BottleNeck layer"""
-        bottleneck = layers.UpBottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride
-        )
-        output = bottleneck(self.input_tensor)
+    def _spatial_scale(self, stride):
+        """Spatial scale is downsampled.."""
+        return 1 / stride  # Upsampling
+    
 
-        expected_shape = (
-            self.input_shape[0],
-            self.input_shape[1] * self.stride,
-            self.input_shape[2] * self.stride,
-            self.input_shape[3] * self.stride,
-            self.filter_num * bottleneck.channel_out_mult_factor
-        )
-
-        self.assertEqual(output.shape, expected_shape)
-        self.assertEqual(expected_shape, bottleneck.compute_output_shape(self.input_tensor.shape))
-
-        # Try modifying channel multiplier
-        bottleneck = layers.UpBottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride,
-            channel_out_mult_factor=1
-        )
-        output = bottleneck(self.input_tensor)
-
-        expected_shape = (
-            self.input_shape[0],
-            self.input_shape[1] * self.stride,
-            self.input_shape[2] * self.stride,
-            self.input_shape[3] * self.stride,
-            self.filter_num * bottleneck.channel_out_mult_factor
-        )
-        self.assertEqual(output.shape, expected_shape)
-        self.assertEqual(expected_shape, bottleneck.compute_output_shape(self.input_tensor.shape))
-
-    def testUpBottleNeck_compilation(self):
-        """Test if the layer integrates into a simple model and compiles"""
-        inputs = keras.Input(shape=self.input_shape[1:])
-        x = layers.UpBottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride
-        )(inputs)
-        model = keras.Model(inputs, x)
-        try:
-            model.compile(optimizer='adam', loss='mse')
-        except Exception as e:
-            self.fail(f'Model compilation failed: {e}')
-
-    def testUpBottleNeck_no_downsampling(self):
-        """Test behavior when stride=1 (no spatial downsampling)"""
-        bottleneck = layers.UpBottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=1
-        )
-        output = bottleneck(self.input_tensor)
-
-        expected_shape = (
-            self.input_shape[0],
-            self.input_shape[1],
-            self.input_shape[2],
-            self.input_shape[3],
-            self.filter_num * bottleneck.channel_out_mult_factor
-        )
-        self.assertEqual(output.shape, expected_shape)
-
-    def testUpBottleNeckModelWithUnknownShapes_build_compile_train(self):
-        """Test building, compiling, and one-step training of a model with unknown input shapes"""
-
-        # Create Input layer with dynamic spatial dimensions
-        input_layer = keras.Input(shape=(None, None, None, 16))  # Depth, Height, Width, Channels
-
-        # Add the BottleNeck layer
-        x = layers.UpBottleNeck(
-            filter_num=self.filter_num,
-            dropout_rate=self.dropout_rate,
-            stride=self.stride
-        )(input_layer)
-
-        # Add a global pooling and dense for simplicity
-        x = keras.layers.GlobalAveragePooling3D()(x)
-        output = keras.layers.Dense(1)(x)
-
-        # Create model
-        model = keras.Model(inputs=input_layer, outputs=output)
-
-        # Compile model
-        model.compile(optimizer="adam", loss="mse")
-
-        # Generate dummy input and target data (must match input shape)
-        dummy_input = keras.random.normal((1, 32, 32, 32, 16))
-        dummy_target = keras.random.normal((1, 1))
-
-        # Fit for one step
-        model.fit(dummy_input, dummy_target, epochs=1, steps_per_epoch=1, verbose=0)
-
-
+# ===============================================
+# *                SSFAdaLayer                  *
+# ===============================================
 class TestSSFAdaLayer(unittest.TestCase):
     """Test the SSFAdaLayer"""
 
