@@ -138,6 +138,16 @@ class TestPlainLayer(BaseBottleNeckTest, unittest.TestCase):
         """Spatial scale is downsampled.."""
         return 1 / stride  # Upsampling
     
+# ===============================================
+# *                    Residual                 *
+# ===============================================
+class TestResidualLayer(BaseBottleNeckTest, unittest.TestCase):
+    """Run tests for Plain layer.."""
+    LAYER_CLASS = layers.Residual
+
+    def _spatial_scale(self, stride):
+        """Spatial scale is downsampled.."""
+        return 1 / stride  # Upsampling
 
 # ===============================================
 # *                SSFAdaLayer                  *
@@ -160,6 +170,7 @@ class TestSSFAdaLayer(unittest.TestCase):
         output = layer(input_tensor)
         self.assertEqual(output.shape, input_tensor.shape)
         self.assertTrue(np.allclose(output.shape, input_tensor.shape))
+        self.assertEqual(layer.compute_output_shape(input_tensor.shape), output.shape)
 
     def test_in_model_with_undefined_shape(self):
         """Pass the layer an input with undefined batch shape via Conv2D."""
