@@ -34,10 +34,8 @@ jobs:
       uses: astral-sh/ruff-action@v3
       with:
         src: >-
-          ./preprocessing/
-          ./utilities/
+          ./brain/
           ./tests/
-          ./metrics.py
 
     - name: Run tests with unittest
       run: |

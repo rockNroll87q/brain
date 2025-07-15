@@ -4,17 +4,17 @@ Created on Friday - July 11 2025
 @author: Austin Dibble, University of Glasgow
 """
 
-import unittest
 import os
+import unittest
 
 os.environ['KERAS_BACKEND'] = 'torch'
 import keras
 import numpy as np
 
-import layers
+import brain.layers as layers
 
 
-class BaseBottleNeckTest():
+class BaseBottleNeckTest:
     """Base class to consolidate common logic for bottleneck layer tests."""
 
     LAYER_CLASS = None

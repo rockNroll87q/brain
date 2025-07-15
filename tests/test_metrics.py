@@ -10,11 +10,12 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from metrics import (
+from brain.metrics import (
     BasicMetricsWrapper,
-    categorize,
     LongitudinalMetricsWrapper,
+    categorize,
 )
+
 
 # test with `python -m unittest` from brain root directory
 class TestMetricsFunctions(unittest.TestCase):

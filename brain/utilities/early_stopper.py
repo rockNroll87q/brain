@@ -7,10 +7,9 @@ Created on 01-03-2024
 Custom early stopping callback with a timer component.
 """
 
-from datetime import timedelta
-from typing import Union
 import re
 import time
+from datetime import timedelta
 
 import keras
 from loguru import logger
@@ -56,7 +55,8 @@ class EarlyStoppingWithTimer(keras.callbacks.EarlyStopping):
                                             restore_best_weights=True, timelimit="1d 2h 30m")
 
         # Example using a timedelta object
-        earlystopper = EarlyStoppingWithTimer(monitor='val_loss', patience=15, verbose=1, timelimit=datetime.timedelta(days=1))
+        earlystopper = EarlyStoppingWithTimer(monitor='val_loss', patience=15, \
+            verbose=1, timelimit=datetime.timedelta(days=1))
 
         # Example using float/int seconds
         earlystopper = EarlyStoppingWithTimer(monitor='val_loss', patience=15, verbose=1, timelimit=3600)
@@ -73,13 +73,13 @@ class EarlyStoppingWithTimer(keras.callbacks.EarlyStopping):
                 mode='auto',
                 baseline=None,
                 restore_best_weights=False,
-                timelimit:Union[int, float, str, timedelta]='inf'): # Time limit in seconds, as a string like 'Xd Yh Zm', or as a datetime.timedelta object. 'inf' means no timelimit
+                timelimit:int | float | str | timedelta='inf'):
         """Initialise class; parse time information."""
 
-        super(EarlyStoppingWithTimer, self).__init__(monitor, min_delta, patience, verbose, mode, baseline, restore_best_weights)
+        super().__init__(monitor, min_delta, patience, verbose, mode, baseline, restore_best_weights)
         
         # Determine the type of timelimit and set it appropriately
-        if isinstance(timelimit, (int, float)):
+        if isinstance(timelimit, int | float):
             self.timelimit = timelimit
         elif isinstance(timelimit, str):
             if timelimit != 'inf':
@@ -139,9 +139,10 @@ class EarlyStoppingWithTimer(keras.callbacks.EarlyStopping):
             if self.model: 
                 self.model.stop_training = True
             if self.verbose > 0:
-                logger.warning(f"==Stopping training==: projected end time for next epoch ({projected_time:.2f} seconds) exceeds time limit of {self.timelimit} seconds.")
+                logger.warning(f"==Stopping training==: projected end time for next epoch \
+                                ({projected_time:.2f} seconds) exceeds time limit of {self.timelimit} seconds.")
             
-            # This is repeated from the stop clause of the EarlyStopping class. Restore best weights, if needed, before stopping
+            # This is repeated from the stop clause of the EarlyStopping class. Restore best weights, if needed.
             self.stopped_epoch = epoch
             if self.restore_best_weights and self.best_weights is not None:
                 if self.verbose > 0:
