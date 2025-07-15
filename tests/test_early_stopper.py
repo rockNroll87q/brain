@@ -16,7 +16,7 @@ os.environ['KERAS_BACKEND'] = 'torch'
 import numpy as np
 from loguru import logger
 
-from utilities import EarlyStoppingWithTimer
+from brain.utilities import EarlyStoppingWithTimer
 
 # test with python -m pytest from brain root directory
 class TestEarlyStopperFunctions(unittest.TestCase):

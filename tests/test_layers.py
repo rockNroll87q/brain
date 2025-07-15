@@ -11,7 +11,7 @@ os.environ['KERAS_BACKEND'] = 'torch'
 import keras
 import numpy as np
 
-import layers
+import brain.layers as layers
 
 
 class BaseBottleNeckTest():

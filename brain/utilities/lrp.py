@@ -21,7 +21,7 @@ try:
 except ImportError as e:
     logger.error(f"Could not import explainability: {e}")
 
-from tensorflow.keras.models import Model
+from keras.models import Model
 from .model_utils import freeze_model
 
 class LRPStrategyBuilder:
