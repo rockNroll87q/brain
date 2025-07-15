@@ -1,8 +1,8 @@
 # Brain: Brain Imaging and Artificial Intelligence Research Lab Library
 
-![Tests & Linting](https://github.com/rockNroll87q/TheOneSeg/actions/workflows/python-tests.yaml/badge.svg)
-![Docstrings](https://github.com/rockNroll87q/TheOneSeg/actions/workflows/interrogate-docstrings.yaml/badge.svg)
-![MKDocs](https://github.com/rockNroll87q/TheOneSeg/actions/workflows/mk-docs.yaml/badge.svg)
+![Tests & Linting](https://github.com/rockNroll87q/brain/actions/workflows/python-tests.yaml/badge.svg)
+![Docstrings](https://github.com/rockNroll87q/brain/actions/workflows/interrogate-docstrings.yaml/badge.svg)
+![MKDocs](https://github.com/rockNroll87q/brain/actions/workflows/mk-docs.yaml/badge.svg)
 
 **[Installation](#installation)** - **[Quick usage](#quick-usage)**
 
