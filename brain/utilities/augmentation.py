@@ -240,7 +240,7 @@ class GammaNoiseAugment(ImageOnlyTransform):
 
     def apply(self, img, **params):
         """Apply."""
-        by_slice = self.rng.random() < self.p_by_slice 
+        by_slice = self.rng.random() < self.p_by_slice
 
         return fast_change_luminance_contrast(img, self.rng, by_slice=by_slice)
 
@@ -508,7 +508,7 @@ class FastBiasNoiseAugment(ImageOnlyTransform):
         gaussian = self.rng.normal(mean, sigma, noise.shape)
         noise = addWeighted(noise, 0.9, gaussian, 0.1, 0)
 
-        # It may be that the noise volume is larger than the input image, 
+        # It may be that the noise volume is larger than the input image,
         # so we need to crop it back to match the size of the input
         if noise.shape != img.shape:
             noise = noise[0 : img.shape[0], 0 : img.shape[1], 0 : img.shape[2]]
@@ -544,7 +544,7 @@ def translate_volume(
 class TranslationAugment(DualTransform):
     """Class to deal with translation augmentation."""
 
-    def __init__(self, max_shift:list=None, always_apply=False, p=1.0):
+    def __init__(self, max_shift: list = None, always_apply=False, p=1.0):
         """Init."""
         super().__init__(p=p)
         if max_shift is None:
@@ -617,7 +617,7 @@ def fast_translate_volume(image, shift_x0: int, shift_x1: int, shift_x2: int, pa
 class FastTranslationAugment(DualTransform):  # This is faster than the other translation by about a factor of 10x
     """Class to deal with translation augmentation, but faster!"""
 
-    def __init__(self, max_shift:list=None, padding_mode="constant", seed=None, always_apply=False, p=1.0):
+    def __init__(self, max_shift: list = None, padding_mode="constant", seed=None, always_apply=False, p=1.0):
         """Init."""
         super().__init__(p=p)
         if max_shift is None:
@@ -835,7 +835,8 @@ class Augmenter:  # New augmentation class. Recommended to use this now instead 
 
         # This part is just to ensure that the probabilities are normalized to levels that we expect.
         # Internally, the normalization is done by albumentations OneOf
-        # It doesn't affect the augmentations themselves, but it does ensure that we get a reasonable distribution of types.
+        # It doesn't affect the augmentations themselves, but it does ensure 
+        # that we get a reasonable distribution of types.
         def calculate_weights(desired_probabilities):
             total_probability = sum(desired_probabilities.values())
             if total_probability == 0:

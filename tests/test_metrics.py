@@ -12,9 +12,10 @@ import pandas as pd
 
 from brain.metrics import (
     BasicMetricsWrapper,
-    categorize,
     LongitudinalMetricsWrapper,
+    categorize,
 )
+
 
 # test with `python -m unittest` from brain root directory
 class TestMetricsFunctions(unittest.TestCase):

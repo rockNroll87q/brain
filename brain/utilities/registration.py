@@ -99,8 +99,8 @@ def to_numpy(img):
 
 def from_numpy(img_arr, ref_vol=None):
     """
-    Creates an ANTS volume array object from a numpy volume. If a ref_vol is given, then that information is used to conform
-    the given numpy array.
+    Creates an ANTS volume array object from a numpy volume. 
+    If a ref_vol is given, then that information is used to conform the given numpy array.
 
     Args:
         img_arr: 3D numpy array representing the brain volume.
