@@ -34,15 +34,20 @@ class BottleNeck(keras.layers.Layer):
 
         Structure: - Input -|> Conv > BN > Conv > BN > Conv > BN > Dropout > Add -
                             |___________________> Conv > BN >_________________|
-        :param filter_num: base number of used filters.
-        :param dropout_rate: used dropout rate. A 0 value means no dropout.
-        :param stride: applied downsampling stride.
-        :param activation: a registered tf2 activation function.
-        :param bn: whether use batch normalization (BN), Group Normalization (GN), or None
-        :param groups: the number of groups for Group Normalization.
-        :param kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
-        :param kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
-        :param mult_factor: middle filter multiplicative factor
+
+        Args:
+            filter_num: base number of used filters.
+            dropout_rate: used dropout rate. A 0 value means no dropout.
+            stride: applied downsampling stride.
+            activation: a registered tf2 activation function.
+            bn: whether use batch normalization (BN), Group Normalization (GN), or None
+            groups: the number of groups for Group Normalization.
+            kernel_initializer: initializer for the kernel weights matrix (see keras.initializers).
+            kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
+            mult_factor: middle filter multiplicative factor
+            channel_out_mult_factor: multiplicative factor for output channels
+            downsampling: downsampling type; conv or pool
+            **kwargs: kwargs to pass to parent class
         """
         super().__init__(**kwargs)
         self.activation = activation

@@ -1,0 +1,28 @@
+site_name: Brain Library Docs
+site_url: https://rocknroll871.github.io/brain
+theme:
+  name: material
+  features:
+    - search.suggest
+    - search.highlight
+    - search.share
+    - header.autohide
+
+plugins:
+  - search
+  - tags
+  - privacy
+  - mkdocstrings:
+      handlers:
+        python: 
+          options:
+            docstring_style: google
+  - include-markdown:
+      cache: 600
+      cache_dir: .cache/include-markdown-cache
+
+markdown_extensions:
+  - pymdownx.betterem
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
