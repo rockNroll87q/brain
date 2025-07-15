@@ -9,8 +9,10 @@ Base augmentation config
 
 from pydantic import BaseModel, Field
 
+
 class AugmentConfig(BaseModel):
     """Augmentation configurations"""
+
     augmentation: bool = Field(False, title="use or not data augmentation")
     prob_overall: float = Field(0.9, title="overall probability to apply data augmentation (training ONLY)")
 
@@ -35,4 +37,3 @@ class AugmentConfig(BaseModel):
     prob_slic: float = Field(1.0, title="probability to apply 'SliceSpacingNoiseAugment'")
     prob_bias: float = Field(1.0, title="probability to apply 'BiasNoiseAugment'")
     prob_neck: float = Field(0.0, title="probability to apply 'SliceRepetitionNeckNoiseAugment'")
-    

@@ -7,11 +7,7 @@ Created on Monday - July 14 2025
 
 """
 
-from . import augmentation
-from . import config
-from . import lrp
-from . import model_utils
-from . import registration
+from . import augmentation, config, lrp, model_utils, registration
 from .early_stopper import EarlyStoppingWithTimer
 
 __all__ = [

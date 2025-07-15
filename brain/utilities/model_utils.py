@@ -10,6 +10,7 @@ Utility functions for manipulating models and model layers.
 from keras.models import Model
 from loguru import logger
 
+
 def get_mid_layer(model, layer_name):
     """
     Returns a new Keras model that has the outputs as the specified intermediate layer.

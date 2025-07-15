@@ -17,12 +17,14 @@ from loguru import logger
 
 try:
     from explainability import LRP, LRPStrategy
-    from explainability.layers import ConvLRP, DenseLRP, SSFLRP, BottleNeckLRP
+    from explainability.layers import SSFLRP, BottleNeckLRP, ConvLRP, DenseLRP
 except ImportError as e:
     logger.error(f"Could not import explainability: {e}")
 
 from keras.models import Model
+
 from .model_utils import freeze_model
+
 
 class LRPStrategyBuilder:
     """
@@ -126,7 +128,7 @@ class LRPModelFactory:
         output_layer = None
 
         model_outputs = self.model.output
-        if not isinstance(model_outputs, (list, tuple)):
+        if not isinstance(model_outputs, list | tuple):
             model_outputs = [model_outputs]
 
         for out in model_outputs:

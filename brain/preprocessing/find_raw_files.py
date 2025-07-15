@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 
 """
-This script allows you to find all the files in a given src_dir and find their locations in the trg_dir (and recursive dirs) 
-storing the src and target file paths in a csv 
+This script allows you to find all the files in a given src_dir and find their locations in the trg_dir 
+(and recursive dirs) storing the src and target file paths in a csv.
 
 As input you provide:
-- 'src_dir' : The src directory containing the files you want to find 
-- 'trg_dir' : The root dir to start the search from (will search all subsidary dirs) 
+- 'src_dir' : The src directory containing the files you want to find
+- 'trg_dir' : The root dir to start the search from (will search all subsidary dirs)
 - 'output' : the dir to save the mapping csv
 
-Example terminal command:   
-./find_raw_files.py --src_dir /analyse/Project0404/brain_age/data/project_name/raw/ --trg_dir /analyse/Project0404/brain_age/data/project_name/ --output /analyse/Project0404/brain_age/data/project_name/raw
+Example terminal command:
+./find_raw_files.py --src_dir /analyse/Project0404/brain_age/data/project_name/raw/ \
+    --trg_dir /analyse/Project0404/brain_age/data/project_name/ \
+        --output /analyse/Project0404/brain_age/data/project_name/raw
 
 """
 
-import os
-import csv
 import argparse
+import csv
+import os
+
 
 def build_filename_index(root_dir):
     """
@@ -29,6 +32,7 @@ def build_filename_index(root_dir):
             index.setdefault(fname, []).append(os.path.join(dirpath, fname))
     return index
 
+
 def main(args):
     """Run everything"""
     # 1) Build index of trg_dir
@@ -36,7 +40,7 @@ def main(args):
     filename_index = build_filename_index(args.trg_dir)
 
     # 2) Open CSV and write header
-    with open(f'{args.output}/raw_file_mapping.csv', "w", newline="") as csvfile:
+    with open(f"{args.output}/raw_file_mapping.csv", "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["src_path", "found_path"])
 
@@ -53,23 +57,16 @@ def main(args):
 
     print(f"\nDone! Results written to {args.output}")
 
+
 if __name__ == "__main__":
-    
     parser = argparse.ArgumentParser(
         description="Map every file in src_dir to matching names under trg_dir, outputting a CSV."
     )
+    parser.add_argument("-d1", "--src_dir", required=True, help="Source directory whose files you want to match")
     parser.add_argument(
-        "-d1", "--src_dir", required=True,
-        help="Source directory whose files you want to match"
+        "-d2", "--trg_dir", required=True, help="Target directory tree to search for matching filenames"
     )
-    parser.add_argument(
-        "-d2", "--trg_dir", required=True,
-        help="Target directory tree to search for matching filenames"
-    )
-    parser.add_argument(
-        "-o", "--output", required=True,
-        help="Path to output CSV (will be overwritten if it exists)"
-    )
+    parser.add_argument("-o", "--output", required=True, help="Path to output CSV (will be overwritten if it exists)")
     args = parser.parse_args()
 
     main(args)

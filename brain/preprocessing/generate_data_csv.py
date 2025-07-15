@@ -36,9 +36,9 @@ Usage:
 Optionally, a random seed can be provided for reproducible splits.
 """
 
-import os
-import csv
 import argparse
+import csv
+import os
 import random
 import sys
 
@@ -96,7 +96,7 @@ def split_subjects(subjects, train_pct, valid_pct, seed=None):
     n_train = int(total * train_pct / 100)
     n_valid = int(total * valid_pct / 100)
 
-    return subs[:n_train], subs[n_train:n_train + n_valid], subs[n_train + n_valid:]
+    return subs[:n_train], subs[n_train : n_train + n_valid], subs[n_train + n_valid :]
 
 
 def main(args):
@@ -112,17 +112,15 @@ def main(args):
         sys.exit("No .nii.gz files found in anat_dir. Exiting.")
 
     # Split subjects
-    train_subjs, valid_subjs, test_subjs = split_subjects(
-        subjects, args.train, args.valid, args.test, args.random_seed
-    )
-    split_map = {s: 'train' for s in train_subjs}
-    split_map.update({s: 'valid' for s in valid_subjs})
-    split_map.update({s: 'test' for s in test_subjs})
+    train_subjs, valid_subjs, test_subjs = split_subjects(subjects, args.train, args.valid, args.test, args.random_seed)
+    split_map = {s: "train" for s in train_subjs}
+    split_map.update({s: "valid" for s in valid_subjs})
+    split_map.update({s: "test" for s in test_subjs})
 
     # Determine output directory
     anat_abs = os.path.abspath(args.anat_dir)
     project_root = os.path.dirname(os.path.dirname(anat_abs))
-    csv_dir = os.path.join(project_root, 'csv')
+    csv_dir = os.path.join(project_root, "csv")
     os.makedirs(csv_dir, exist_ok=True)
     output_path = os.path.join(csv_dir, args.csv_name)
 
@@ -133,15 +131,17 @@ def main(args):
         writer.writeheader()
         for subj in subjects:
             anat_path = f"{args.project_name}/GT/{subj}.nii.gz"
-            for task, affix in zip(TASKS, AFFIXES):
+            for task, affix in zip(TASKS, AFFIXES, strict=False):
                 mask_path = f"{args.project_name}/anat/{subj}_{affix}.nii.gz"
-                writer.writerow({
-                    "subj": subj,
-                    "anat": anat_path,
-                    "task": task,
-                    "mask": mask_path,
-                    "split": split_map[subj],
-                })
+                writer.writerow(
+                    {
+                        "subj": subj,
+                        "anat": anat_path,
+                        "task": task,
+                        "mask": mask_path,
+                        "split": split_map[subj],
+                    }
+                )
 
     total_rows = len(subjects) * len(TASKS)
     print(f"Saved CSV to {output_path} with {total_rows} rows across splits:")
@@ -149,10 +149,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(
-        description="Generate a tasks CSV from an anat directory with splits."
-    )
+    parser = argparse.ArgumentParser(description="Generate a tasks CSV from an anat directory with splits.")
     parser.add_argument(
         "anat_dir",
         help="Path to the directory containing your .nii.gz anatomical files",

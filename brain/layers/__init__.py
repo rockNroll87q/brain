@@ -7,8 +7,7 @@ Created on Monday - July 14 2025
 
 """
 
-from .layers import BottleNeck, UpBottleNeck, SSFAdaLayer, \
-                    Plain, Residual, UpPlain, ExpandNeck
+from .layers import BottleNeck, ExpandNeck, Plain, Residual, SSFAdaLayer, UpBottleNeck, UpPlain
 
 __all__ = [
     "BottleNeck",

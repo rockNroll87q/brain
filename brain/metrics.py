@@ -22,7 +22,9 @@ import math
 import warnings
 
 import numpy as np
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# ruff: noqa: B008
 
 """
 == Original MIT License Here ==
@@ -77,7 +79,7 @@ def categorize(
     if not np.all(np.sort(bin) == bin):
         raise ValueError("Categories should be in increasing order")
     if len(bin) < 2:
-        warnings.warn("Vector remains unchanged; Expected len(bin)>=2.")
+        warnings.warn("Vector remains unchanged; Expected len(bin)>=2.", stacklevel=2)
         return num_vector
     
     # Code change by Austin Dibble
@@ -88,7 +90,7 @@ def categorize(
         bin = np.insert(bin, len(bin), num_vector.max())
 
     # Assign bin
-    category_labels = [f"[{int(cat1)},{int(cat2)})" for cat1, cat2 in zip(bin, bin[1:])]
+    category_labels = [f"[{int(cat1)},{int(cat2)})" for cat1, cat2 in zip(bin, bin[1:], strict=False)]
     category_labels[-1] = f"[{int(bin[-2])},{int(bin[-1])}]"
 
     if int_bin:
