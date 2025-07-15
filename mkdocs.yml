@@ -17,6 +17,9 @@ plugins:
         python: 
           options:
             docstring_style: google
+  - include-markdown:
+      cache: 600
+      cache_dir: .cache/include-markdown-cache
 
 markdown_extensions:
   - pymdownx.betterem
