@@ -30,6 +30,7 @@ class BottleNeck(keras.layers.Layer):
         mult_factor: int = 1,
         channel_out_mult_factor: int = 4,
         downsampling: str = "conv",
+        conditioning_layer: keras.layers.Layer = None,
         **kwargs,
     ):
         """
@@ -64,6 +65,7 @@ class BottleNeck(keras.layers.Layer):
         self.kernel_regularizer_value = kernel_regularizer
         self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
         self.downsampling = downsampling
+        self.conditioning_layer = conditioning_layer
 
         return
 
@@ -115,9 +117,16 @@ class BottleNeck(keras.layers.Layer):
 
         self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
+        if self.conditioning_layer is not None:
+            self.film2 = FiLM3DLayer(
+                num_channels  = self.filter_num * self.mult_factor,
+                condition_dim = self.conditioning_layer.condition_dim
+            )
+        else:
+            self.film2 = None
         return
 
-    def call(self, inputs, training=None):
+    def call(self, inputs, condition_vector=None, training=None):
         """Forward pass."""
         residual = self.downsample(inputs)
         if self.bn:
@@ -131,6 +140,8 @@ class BottleNeck(keras.layers.Layer):
         x = self.conv2(x)
         if self.bn:
             x = self.bn2(x, training=training)
+        if self.film2 is not None and condition_vector is not None:
+            x = self.film2(x, condition_vector)
         x = getattr(keras.ops, self.activation)(x)
 
         x = self.conv3(x)
@@ -169,6 +180,7 @@ class BottleNeck(keras.layers.Layer):
             "kernel_initializer": self.kernel_initializer,
             "kernel_regularizer": self.kernel_regularizer_value,
             "downsampling": self.downsampling,
+            "conditioning_layer": self.conditioning_layer.name if self.conditioning_layer else None
         }
 
 
@@ -936,3 +948,130 @@ class ExpandNeck(keras.layers.Layer):
             "kernel_initializer": self.kernel_initializer,
             "kernel_regularizer": self.kernel_regularizer_value,
         }
+
+class FiLMConditioningVector(keras.layers.Layer):
+    """ Keras layer to generate a conditioning vector for FiLM based on task ID. 
+    
+    This layer uses an embedding layer to create a conditioning vector of shape (batch_size, condition_dim).
+    It is useful for tasks like segmentation where different tasks may require different conditioning vectors.
+    Ex.
+        from src.model.layers import FiLMConditioningVector
+        cond_layer = FiLMConditioningVector(num_tasks=3, condition_dim=256)
+        task_ids = torch.tensor([0, 1, 2])  # Example task IDs
+        cond_vector = cond_layer(task_ids)
+        print(cond_vector.shape)  # Output: (3, 256)
+    """
+
+    def __init__(self, 
+                 num_tasks,
+                 condition_dim=256,
+                 l2_weight=1e-4,
+                 **kwargs):
+        """ Initialize the FiLMConditioningVector layer.
+
+        Args:
+            num_tasks (int): Number of task types (e.g., 2 for dual segmentation tasks).
+            condition_dim (int): Dimension of the output conditioning vector.
+            l2_weight (float): L2 regularization strength.
+            kwargs: Additional keyword arguments for the layer.
+        """
+        super().__init__(**kwargs)
+
+        self.num_tasks = num_tasks
+        self.condition_dim = condition_dim
+        self.l2 = keras.regularizers.L2(l2_weight)
+
+        # Learnable embedding for each task
+        self.task_embedding = keras.layers.Embedding(
+            input_dim=num_tasks,
+            output_dim=condition_dim,
+            embeddings_regularizer=self.l2
+        )
+
+    def call(self, task_id) -> keras.layers.Layer:
+        """
+        Args:
+            task_id: Integer tensor of shape (batch_size,) representing task indices.
+        
+        Returns:
+            Tensor of shape (batch_size, condition_dim)
+        """
+        return self.task_embedding(task_id)
+
+    def get_config(self) -> dict:
+        """ Get the configuration of the layer for serialization. """
+        return {
+            "num_tasks": self.num_tasks,
+            "condition_dim": self.condition_dim,
+            "l2_weight": self.l2.l2
+        }
+
+class FiLM3DLayer(keras.layers.Layer):
+    """ FiLM layer for 3D feature modulation with L2 regularization. 
+    This layer applies FiLM modulation to 3D tensors using learned parameters for gamma and beta.
+    To insert this layer in a model, use:
+    Ex. 
+        conditioning_vector_layer = FiLMConditioningVector(num_tasks=2, condition_dim=256)
+        film_layer = FiLM3DLayer(num_channels=64, condition_dim=256)
+        input_tensor = keras.Input(shape=(16, 16, 16, 64))  # Example input tensor
+        task_ids = torch.tensor([0, 1, 1, 0])  # Example task IDs
+
+        condition_vector = conditioning_vector_layer(task_ids)  # Get conditioning vector
+        modulated_tensor = film_layer(input_tensor, condition_vector)
+        print("Input shape:     ", input_tensor.shape)
+        print("Condition shape: ", condition_vector.shape)
+        print("Output shape:    ", modulated_tensor.shape)
+    """
+
+    def __init__(self, num_channels, condition_dim, l2_weight=1e-4, **kwargs):
+        """
+        FiLM layer for 3D feature modulation with L2 regularization.
+
+        Args:
+            num_channels (int): Number of input feature channels.
+            condition_dim (int): Dimensionality of the conditioning vector.
+            l2_weight (float): L2 regularization strength (weight decay).
+            kwargs: Additional keyword arguments for the layer.
+        """
+        super().__init__(**kwargs)
+
+        l2 = keras.regularizers.L2(l2_weight)
+
+        self.gamma_dense = keras.layers.Dense(
+            num_channels,
+            kernel_regularizer=l2,
+            bias_regularizer=l2,
+            kernel_initializer='zeros',
+            bias_initializer=keras.initializers.Constant(1.0)
+        )
+
+        self.beta_dense = keras.layers.Dense(
+            num_channels,
+            kernel_regularizer=l2,
+            bias_regularizer=l2,
+            kernel_initializer='zeros',
+            bias_initializer='zeros'
+        )
+
+    def call(self, x, condition_vector):
+        """
+        Apply FiLM modulation.
+
+        Args:
+            x: Tensor of shape (B, D, H, W, C)
+            condition_vector: Tensor of shape (B, condition_dim)
+
+        Returns:
+            Modulated tensor of shape (B, D, H, W, C)
+        """
+        gamma = self.gamma_dense(condition_vector)  # (B, C)
+        beta = self.beta_dense(condition_vector)    # (B, C)
+
+        gamma = keras.layers.reshape(gamma, [-1, 1, 1, 1, x.shape[-1]])
+        beta = keras.layers.reshape(beta, [-1, 1, 1, 1, x.shape[-1]])
+
+        return gamma * x + beta
+
+    def compute_output_shape(self, input_shape):
+        """ Compute the output shape of the FiLM layer based on the input shape. """
+        return input_shape
