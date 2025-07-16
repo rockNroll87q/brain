@@ -16,8 +16,8 @@ from loguru import logger
 from scipy import stats
 from scipy.ndimage import affine_transform, rotate, zoom
 
-from brain.brain.utilities.config import AugmentConfig
-from brain.brain.utilities.misc import pad_volume_to_shape
+from .config import AugmentConfig
+from .misc import pad_volume_to_shape
 
 
 def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: int = 0) -> np.ndarray:
