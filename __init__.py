@@ -7,8 +7,12 @@ author: Michele Svanera, University of Glasgow
 
 """
 
-from . import brain
+from .brain import layers
+from .brain import utilities
+from .brain import metrics
 
 __all__ = [
-    "brain"
+    "layers",
+    "utilities",
+    "metrics"
 ]
