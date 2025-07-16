@@ -7,7 +7,7 @@ Created on Monday - July 14 2025
 
 """
 
-from .layers import BottleNeck, ExpandNeck, Plain, Residual, SSFAdaLayer, UpBottleNeck, UpPlain
+from .layers import BottleNeck, ExpandNeck, Plain, Residual, SSFAdaLayer, UpBottleNeck, UpPlain, FiLMConditioningVector, FiLM3DLayer
 
 __all__ = [
     "BottleNeck",
@@ -16,5 +16,7 @@ __all__ = [
     "Plain",
     "Residual",
     "UpPlain",
-    "ExpandNeck"
+    "ExpandNeck",
+    "FiLMConditioningVector",
+    "FiLM3DLayer",
 ]

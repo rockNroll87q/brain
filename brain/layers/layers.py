@@ -51,6 +51,7 @@ class BottleNeck(keras.layers.Layer):
             mult_factor: middle filter multiplicative factor
             channel_out_mult_factor: multiplicative factor for output channels
             downsampling: downsampling type; conv or pool
+            conditioning_layer: a FiLM conditioning layer to apply to the second conv layer
             **kwargs: kwargs to pass to parent class
         """
         super().__init__(**kwargs)
@@ -138,10 +139,10 @@ class BottleNeck(keras.layers.Layer):
         x = getattr(keras.ops, self.activation)(x)
 
         x = self.conv2(x)
-        if self.bn:
-            x = self.bn2(x, training=training)
         if self.film2 is not None and condition_vector is not None:
             x = self.film2(x, condition_vector)
+        if self.bn:
+            x = self.bn2(x, training=training)
         x = getattr(keras.ops, self.activation)(x)
 
         x = self.conv3(x)
@@ -203,6 +204,7 @@ class UpBottleNeck(keras.layers.Layer):
         kernel_regularizer: float = 1.0e-4,
         mult_factor: int = 1,
         channel_out_mult_factor: int = 4,
+        conditioning_layer: keras.layers.Layer = None,
         **kwargs,
     ):
         """
@@ -222,6 +224,7 @@ class UpBottleNeck(keras.layers.Layer):
             kernel_regularizer: regularizer that applies a L2 regularization penalty of the given value.
             mult_factor: middle filter multiplicative factor
             channel_out_mult_factor: output filter multiplicative factor
+            conditioning_layer: a FiLM conditioning layer to apply to the second conv layer
             **kwargs: other kwargs
         """
         super().__init__(**kwargs)
@@ -235,6 +238,7 @@ class UpBottleNeck(keras.layers.Layer):
         self.kernel_initializer = kernel_initializer
         self.kernel_regularizer_value = kernel_regularizer
         self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
+        self.conditioning_layer = conditioning_layer
 
     def build(self, input_shape):
         """Build layers."""
@@ -283,7 +287,13 @@ class UpBottleNeck(keras.layers.Layer):
 
         self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
-    def call(self, inputs, training=None, **kwargs):
+        if self.conditioning_layer is not None:
+            self.film2 = FiLM3DLayer(
+                num_channels=self.filter_num * self.mult_factor,
+                condition_dim=self.conditioning_layer.condition_dim
+            )
+
+    def call(self, inputs, condition_vector=None, training=None, **kwargs):
         """Forward pass."""
         residual = self.upsample(inputs)
 
@@ -293,6 +303,9 @@ class UpBottleNeck(keras.layers.Layer):
         x = getattr(keras.ops, self.activation)(x)
 
         x = self.conv2_up(x)
+        if self.film2 is not None and condition_vector is not None:
+            x = self.film2(x, condition_vector)
+            
         if self.bn:
             x = self.bn2(x, training=training)
         x = getattr(keras.ops, self.activation)(x)
@@ -332,6 +345,7 @@ class UpBottleNeck(keras.layers.Layer):
             "channel_out_mult_factor": self.channel_out_mult_factor,
             "kernel_initializer": self.kernel_initializer,
             "kernel_regularizer": self.kernel_regularizer_value,
+            "conditioning_layer": self.conditioning_layer.name if self.conditioning_layer else None
         }
 
 
@@ -1067,8 +1081,9 @@ class FiLM3DLayer(keras.layers.Layer):
         gamma = self.gamma_dense(condition_vector)  # (B, C)
         beta = self.beta_dense(condition_vector)    # (B, C)
 
-        gamma = keras.layers.reshape(gamma, [-1, 1, 1, 1, x.shape[-1]])
-        beta = keras.layers.reshape(beta, [-1, 1, 1, 1, x.shape[-1]])
+        channel_dim = x.shape[-1]
+        gamma = keras.layers.reshape(gamma, [-1, 1, 1, 1, channel_dim])
+        beta = keras.layers.reshape(beta, [-1, 1, 1, 1, channel_dim])
 
         return gamma * x + beta
 
