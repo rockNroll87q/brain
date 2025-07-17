@@ -67,6 +67,7 @@ class BottleNeck(keras.layers.Layer):
         self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
         self.downsampling = downsampling
         self.conditioning_layer = conditioning_layer
+        self.film2 = None
 
         return
 
@@ -120,11 +121,8 @@ class BottleNeck(keras.layers.Layer):
 
         if self.conditioning_layer is not None:
             self.film2 = FiLM3DLayer(
-                num_channels  = self.filter_num * self.mult_factor,
                 condition_dim = self.conditioning_layer.condition_dim
             )
-        else:
-            self.film2 = None
         return
 
     def call(self, inputs, condition_vector=None, training=None):
@@ -139,8 +137,8 @@ class BottleNeck(keras.layers.Layer):
         x = getattr(keras.ops, self.activation)(x)
 
         x = self.conv2(x)
-        if self.film2 is not None and condition_vector is not None:
-            x = self.film2(x, condition_vector)
+        if self.conditioning_layer is not None and condition_vector is not None:
+            x = self.film2([x, condition_vector])
         if self.bn:
             x = self.bn2(x, training=training)
         x = getattr(keras.ops, self.activation)(x)
@@ -289,9 +287,9 @@ class UpBottleNeck(keras.layers.Layer):
 
         if self.conditioning_layer is not None:
             self.film2 = FiLM3DLayer(
-                num_channels=self.filter_num * self.mult_factor,
-                condition_dim=self.conditioning_layer.condition_dim
+                condition_dim = self.conditioning_layer.condition_dim
             )
+        return            
 
     def call(self, inputs, condition_vector=None, training=None, **kwargs):
         """Forward pass."""
@@ -303,8 +301,8 @@ class UpBottleNeck(keras.layers.Layer):
         x = getattr(keras.ops, self.activation)(x)
 
         x = self.conv2_up(x)
-        if self.film2 is not None and condition_vector is not None:
-            x = self.film2(x, condition_vector)
+        if self.conditioning_layer is not None and condition_vector is not None:
+            x = self.film2([x, condition_vector])
             
         if self.bn:
             x = self.bn2(x, training=training)
@@ -1020,54 +1018,62 @@ class FiLMConditioningVector(keras.layers.Layer):
             "l2_weight": self.l2.l2
         }
 
+    def compute_output_shape(self, input_shape):
+        """ Compute the output shape of the layer based on input shape. """
+        return (input_shape[0], self.condition_dim)
+        
+
 class FiLM3DLayer(keras.layers.Layer):
     """ FiLM layer for 3D feature modulation with L2 regularization. 
     This layer applies FiLM modulation to 3D tensors using learned parameters for gamma and beta.
     To insert this layer in a model, use:
     Ex. 
         conditioning_vector_layer = FiLMConditioningVector(num_tasks=2, condition_dim=256)
-        film_layer = FiLM3DLayer(num_channels=64, condition_dim=256)
+        film_layer = FiLM3DLayer(condition_dim=256)
         input_tensor = keras.Input(shape=(16, 16, 16, 64))  # Example input tensor
         task_ids = torch.tensor([0, 1, 1, 0])  # Example task IDs
 
         condition_vector = conditioning_vector_layer(task_ids)  # Get conditioning vector
-        modulated_tensor = film_layer(input_tensor, condition_vector)
-        print("Input shape:     ", input_tensor.shape)
-        print("Condition shape: ", condition_vector.shape)
-        print("Output shape:    ", modulated_tensor.shape)
+        modulated_tensor = film_layer([input_tensor, condition_vector])
+        print("Input shape:     ", input_tensor.shape)      # Output: (None, 16, 16, 16, 64)
+        print("Condition shape: ", condition_vector.shape)  # Output: (4, 256)
+        print("Output shape:    ", modulated_tensor.shape)  # Output: (None, 16, 16, 16, 64)
     """
 
-    def __init__(self, num_channels, condition_dim, l2_weight=1e-4, **kwargs):
+    def __init__(self, condition_dim, l2_weight=1e-4, **kwargs):
         """
         FiLM layer for 3D feature modulation with L2 regularization.
 
         Args:
-            num_channels (int): Number of input feature channels.
             condition_dim (int): Dimensionality of the conditioning vector.
             l2_weight (float): L2 regularization strength (weight decay).
             kwargs: Additional keyword arguments for the layer.
         """
         super().__init__(**kwargs)
+        self.condition_dim = condition_dim
+        self.gamma_dense = None
+        self.beta_dense = None
+        self.l2 = keras.regularizers.L2(l2_weight)
 
-        l2 = keras.regularizers.L2(l2_weight)
-
+    def build(self, input_shape):
+        """ Build the FiLM layer weights. """
+        feature_channels = input_shape[0][-1]
         self.gamma_dense = keras.layers.Dense(
-            num_channels,
-            kernel_regularizer=l2,
-            bias_regularizer=l2,
+            feature_channels,
+            kernel_regularizer=self.l2,
+            bias_regularizer=self.l2,
             kernel_initializer='zeros',
             bias_initializer=keras.initializers.Constant(1.0)
         )
-
         self.beta_dense = keras.layers.Dense(
-            num_channels,
-            kernel_regularizer=l2,
-            bias_regularizer=l2,
+            feature_channels,
+            kernel_regularizer=self.l2,
+            bias_regularizer=self.l2,
             kernel_initializer='zeros',
             bias_initializer='zeros'
         )
 
-    def call(self, x, condition_vector):
+    def call(self, inputs):
         """
         Apply FiLM modulation.
 
@@ -1078,15 +1084,16 @@ class FiLM3DLayer(keras.layers.Layer):
         Returns:
             Modulated tensor of shape (B, D, H, W, C)
         """
+        x, condition_vector = inputs
         gamma = self.gamma_dense(condition_vector)  # (B, C)
         beta = self.beta_dense(condition_vector)    # (B, C)
 
         channel_dim = x.shape[-1]
-        gamma = keras.layers.reshape(gamma, [-1, 1, 1, 1, channel_dim])
-        beta = keras.layers.reshape(beta, [-1, 1, 1, 1, channel_dim])
+        gamma = keras.layers.Reshape(target_shape=(1, 1, 1, channel_dim))(gamma)
+        beta = keras.layers.Reshape(target_shape=(1, 1, 1, channel_dim))(beta)
 
         return gamma * x + beta
 
     def compute_output_shape(self, input_shape):
         """ Compute the output shape of the FiLM layer based on the input shape. """
-        return input_shape
+        return input_shape[0]
