@@ -993,13 +993,15 @@ class FiLMConditioningVector(keras.layers.Layer):
         self.condition_dim = condition_dim
         self.l2 = keras.regularizers.L2(l2_weight)
 
-        # Learnable embedding for each task
-        self.task_embedding = keras.layers.Embedding(
-            input_dim=num_tasks,
-            output_dim=condition_dim,
-            embeddings_regularizer=self.l2
+    def build(self, input_shape):
+        self.task_embedding = keras.layers.Embedding(       # Learnable embedding for each task
+            input_dim=self.num_tasks,
+            output_dim=self.condition_dim,
+            embeddings_regularizer=self.l2,
+            name="task_embedding"
         )
-
+        super().build(input_shape)
+        
     def call(self, task_id) -> keras.layers.Layer:
         """
         Args:
@@ -1012,11 +1014,13 @@ class FiLMConditioningVector(keras.layers.Layer):
 
     def get_config(self) -> dict:
         """ Get the configuration of the layer for serialization. """
-        return {
+        config = super().get_config()
+        config.update({
             "num_tasks": self.num_tasks,
             "condition_dim": self.condition_dim,
             "l2_weight": self.l2.l2
-        }
+        })
+        return config
 
     def compute_output_shape(self, input_shape):
         """ Compute the output shape of the layer based on input shape. """
@@ -1072,14 +1076,16 @@ class FiLM3DLayer(keras.layers.Layer):
             kernel_initializer='zeros',
             bias_initializer='zeros'
         )
+        self.reshape = keras.layers.Reshape((1, 1, 1, feature_channels))
 
     def call(self, inputs):
         """
         Apply FiLM modulation.
 
         Args:
-            x: Tensor of shape (B, D, H, W, C)
-            condition_vector: Tensor of shape (B, condition_dim)
+            inputs: it includes:
+            - x: Tensor of shape (B, D, H, W, C)
+            - condition_vector: Tensor of shape (B, condition_dim)
 
         Returns:
             Modulated tensor of shape (B, D, H, W, C)
@@ -1088,11 +1094,19 @@ class FiLM3DLayer(keras.layers.Layer):
         gamma = self.gamma_dense(condition_vector)  # (B, C)
         beta = self.beta_dense(condition_vector)    # (B, C)
 
-        channel_dim = x.shape[-1]
-        gamma = keras.layers.Reshape(target_shape=(1, 1, 1, channel_dim))(gamma)
-        beta = keras.layers.Reshape(target_shape=(1, 1, 1, channel_dim))(beta)
+        gamma = self.reshape(gamma)
+        beta = self.reshape(beta)
 
         return gamma * x + beta
+
+    def get_config(self):
+        """ Get the configuration of the layer for serialization. """
+        config = super().get_config()
+        config.update({
+            "condition_dim": self.condition_dim,
+            "l2_weight": self.l2.l2
+        })
+        return config
 
     def compute_output_shape(self, input_shape):
         """ Compute the output shape of the FiLM layer based on the input shape. """
