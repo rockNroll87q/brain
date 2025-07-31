@@ -8,7 +8,7 @@ Created on Monday - July 14 2025
 """
 
 from . import augmentation, config, lrp, model_utils, registration
-from .early_stopper import EarlyStoppingWithTimer
+from .early_stopper import EarlyStoppingWithTimer, TorchEarlyStoppingWithTimer
 
 __all__ = [
     "augmentation",
@@ -16,5 +16,6 @@ __all__ = [
     "lrp",
     "model_utils",
     "registration",
-    "EarlyStoppingWithTimer"
+    "EarlyStoppingWithTimer",
+    "TorchEarlyStoppingWithTimer"
 ]

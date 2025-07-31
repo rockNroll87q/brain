@@ -7,6 +7,7 @@ Created on 01-03-2024
 Custom early stopping callback with a timer component.
 """
 
+import copy
 import re
 import time
 from datetime import timedelta
@@ -149,3 +150,177 @@ class EarlyStoppingWithTimer(keras.callbacks.EarlyStopping):
                     logger.info('Restoring model weights from the end of the best epoch.')
                 if self.model: 
                     self.model.set_weights(self.best_weights)
+
+
+class TorchEarlyStoppingWithTimer:
+    """
+    PyTorch-compatible early stopping callback with time-based stopping and best weight restoration.
+
+    This class mimics the functionality of Keras' EarlyStopping, including:
+    - Monitoring a validation metric (e.g. `val_loss`)
+    - Stopping training if no improvement is seen after `patience` epochs
+    - Stopping training if the estimated time to finish another epoch would exceed a `timelimit`
+    - Optionally restoring the best model weights seen so far
+
+    Parameters:
+    -----------
+    monitor : str
+        The name of the metric to monitor (default is 'val_loss'; purely for logging).
+    min_delta : float
+        Minimum change in the monitored metric to qualify as an improvement (default: 0.0).
+    patience : int
+        Number of epochs with no improvement after which training is stopped (default: 0).
+    verbose : int
+        Logging verbosity. 0 = silent, 1 = minimal info, 2 = detailed (default: 1).
+    mode : str
+        One of {"min", "max"}. Whether lower or higher is better for the monitored metric (default: "min").
+    restore_best_weights : bool
+        If True, restores model weights from epoch with best metric value (default: False).
+    timelimit : float | str | timedelta
+        Total time allowed for training. Can be seconds, "Xd Yh Zm" format, or timedelta.
+        If "inf", disables time-based stopping (default: "inf").
+
+    Attributes:
+    -----------
+    best : float
+        Best value observed for the monitored metric.
+    best_weights : dict
+        Copy of the model weights from the best epoch (only if `restore_best_weights` is True).
+    total_time : float
+        Total training time accumulated across epochs.
+
+    Example:
+    --------
+    >>> early_stopper = TorchEarlyStoppingWithTimer(
+    ...     monitor="val_loss",
+    ...     patience=3,
+    ...     mode="min",
+    ...     restore_best_weights=True,
+    ...     timelimit="1h 30m"
+    ... )
+
+    >>> for epoch in range(100):
+    ...     early_stopper.on_epoch_begin()
+    ...     train(...)  # your training logic
+    ...     val_loss = evaluate(...)  # calculate validation loss
+    ...     if early_stopper.on_epoch_end(epoch, val_loss, model):
+    ...         early_stopper.restore_weights_if_needed(model)
+    ...         break
+
+    Notes:
+    ------
+    - `restore_weights_if_needed()` must be called manually after early stopping is triggered.
+    - Time limit is enforced based on projected average time per epoch.
+    """
+
+    def __init__(
+        self,
+        monitor="val_loss",
+        min_delta=0.0,
+        patience=0,
+        verbose=1,
+        mode="min",
+        restore_best_weights=False,
+        timelimit="inf",
+    ):
+        self.monitor = monitor
+        self.min_delta = min_delta
+        self.patience = patience
+        self.verbose = verbose
+        self.mode = mode
+        self.restore_best_weights = restore_best_weights
+
+        # Comparison function
+        if self.mode == "min":
+            self.monitor_op = lambda current, best: current < best - self.min_delta
+            self.best = float("inf")
+        elif self.mode == "max":
+            self.monitor_op = lambda current, best: current > best + self.min_delta
+            self.best = -float("inf")
+        else:
+            raise ValueError("mode must be 'min' or 'max'")
+
+        # Parse time limit
+        if isinstance(timelimit, int | float):
+            self.timelimit = float(timelimit)
+        elif isinstance(timelimit, timedelta):
+            self.timelimit = timelimit.total_seconds()
+        elif isinstance(timelimit, str):
+            if timelimit.strip().lower() == "inf":
+                self.timelimit = float("inf")
+            else:
+                self.timelimit = self.parse_duration(timelimit).total_seconds()
+        else:
+            raise ValueError("Invalid timelimit format.")
+
+        self.start_time = None
+        self.total_time = 0.0
+        self.wait = 0
+        self.stopped_epoch = 0
+        self.best_weights = None
+
+        logger.debug(f"TorchEarlyStoppingWithTimer initialized with timelimit = {self.timelimit:.1f} sec.")
+
+    @staticmethod
+    def parse_duration(duration_str):
+        """Parses a string like '1d 2h 30m' into a timedelta."""
+        pattern = r'((?P<days>\d+?)d)?\s*((?P<hours>\d+?)h)?\s*((?P<minutes>\d+?)m)?'
+        match = re.match(pattern, duration_str.strip())
+        if not match:
+            raise ValueError("Invalid format. Use 'Xd Yh Zm'")
+        parts = match.groupdict()
+        return timedelta(
+            days=int(parts["days"] or 0),
+            hours=int(parts["hours"] or 0),
+            minutes=int(parts["minutes"] or 0)
+        )
+
+    def on_epoch_begin(self):
+        """Mark the start time of a new epoch."""
+        self.start_time = time.time()
+
+    def on_epoch_end(self, epoch, current_value, model):
+        """
+        Called at end of each epoch. Check for stopping condition.
+
+        Args:
+            epoch (int): Current epoch number.
+            current_value (float): Current value of the monitored metric (e.g., val_loss).
+            model (torch.nn.Module): The model being trained.
+
+        Returns:
+            stop (bool): Whether to stop training.
+        """
+        elapsed = time.time() - self.start_time
+        self.total_time += elapsed
+
+        # Metric-based early stopping
+        if self.monitor_op(current_value, self.best):
+            if self.verbose > 1:
+                logger.info(f"Epoch {epoch+1}: {self.monitor} improved from {self.best:.5f} to {current_value:.5f}")
+            self.best = current_value
+            self.wait = 0
+            if self.restore_best_weights:
+                self.best_weights = copy.deepcopy(model.state_dict())
+        else:
+            self.wait += 1
+            if self.verbose > 0:
+                logger.info(f"Epoch {epoch+1}: {self.monitor} did not improve. Patience {self.wait}/{self.patience}")
+            if self.wait >= self.patience:
+                logger.warning(f"Early stopping triggered (no improvement after {self.patience} epochs).")
+                return True
+
+        # Time-based early stopping
+        avg_time = self.total_time / (epoch + 1)
+        projected_total = self.total_time + avg_time
+        if projected_total > self.timelimit:
+            logger.warning(f"Time limit exceeded: stopping at epoch {epoch + 1}")
+            return True
+
+        return False
+
+    def restore_weights_if_needed(self, model):
+        """Restore best weights to model if enabled."""
+        if self.restore_best_weights and self.best_weights is not None:
+            model.load_state_dict(self.best_weights)
+            logger.info("Restored best model weights from early stopping.")
