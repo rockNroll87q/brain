@@ -18,9 +18,10 @@ from loguru import logger
 try:
     from explainability import LRP, LRPStrategy
     from explainability.layers import SSFLRP, BottleNeckLRP, ConvLRP, DenseLRP
-except ImportError as e:
+except Exception:
     pass
-    # logger.error(f"Could not import explainability: {e}")
+# except ImportError as e:
+#     logger.error(f"Could not import explainability: {e}")
 
 from keras.models import Model
 
