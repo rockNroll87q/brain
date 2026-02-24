@@ -130,6 +130,12 @@ gt_estimation_function(){
             $PYTHON_RUN $DISTANCE_SET_SCRIPT --lh_surf $I_SUBJ_OUT_DIR"lh.pial.native" --rh_surf $I_SUBJ_OUT_DIR"rh.pial.native" --lh_opposite_level_set $I_SUBJ_OUT_DIR"FS_lh.dwhite.ribbon_NS.mgz" --rh_opposite_level_set $I_SUBJ_OUT_DIR"FS_rh.dwhite.ribbon_NS.mgz" --orig $I_SUBJ_OUT_DIR"orig_NS.mgz" --output $I_SUBJ_OUT_DIR"pial_distance_set_NS.nii.gz" --dilation_iters 1
             $PYTHON_RUN $DISTANCE_SET_SCRIPT --lh_surf $I_SUBJ_OUT_DIR"lh.white.native" --rh_surf $I_SUBJ_OUT_DIR"rh.white.native" --lh_opposite_level_set $I_SUBJ_OUT_DIR"FS_lh.dpial.ribbon_NS.mgz" --rh_opposite_level_set $I_SUBJ_OUT_DIR"FS_rh.dpial.ribbon_NS.mgz" --orig $I_SUBJ_OUT_DIR"orig_NS.mgz" --output $I_SUBJ_OUT_DIR"wm_distance_set_NS.nii.gz" --dilation_iters 1
 
+            # Convert 'aseg_NS.mgz' to 'FS_7classes.nii.gz'
+            $PYTHON_RUN -W ignore "/analyse/Project0235/segmentator/src/utils/fs_to_mrbrains.py" --path_in=$I_SUBJ_OUT_DIR"FS_aseg_NS.mgz" --path_out=$2 --conversion="aseg_to_mrbr" > $I_OUT_TMP_FOLDER"FS_7classes.txt"
+            
+            # Convert 'FS_aparc+aseg_NS.mgz' to 'FS_a+a_7classes.nii.gz'
+            $PYTHON_RUN -W ignore "/analyse/Project0235/segmentator/src/utils/fs_to_mrbrains.py" --path_in=$I_SUBJ_OUT_DIR"FS_aparc+aseg_NS.mgz" --path_out=$4 --conversion="aa_to_mrbr" > $I_OUT_TMP_FOLDER"FS_a+a_7classes.txt"
+
             # Move useful output
             mv $I_OUT_TMP_FOLDER"surf/"*".thickness" $I_SUBJ_OUT_DIR              # Thickness overlay
 
