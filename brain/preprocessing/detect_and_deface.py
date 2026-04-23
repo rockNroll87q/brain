@@ -5,6 +5,8 @@ Determines whether NIfTI volumes are already defaced by running pydeface and
 measuring how much the volume changes before and after. A volume that is already
 defaced will show little or no change; an intact volume will show a large change.
 
+Defaced/intact prediction is conservative to avoid missed intact faces.
+
 For volumes classified as intact (based on the face ROI metric), the pydeface
 face mask is saved to the corresponding derivative directory before the temporary
 working directory is cleaned up:
@@ -15,8 +17,6 @@ where {stem} is the volume filename with the extension stripped. Each volume get
 its own participant folder; the mask is always named deface_mask.nii.gz so that
 future masks (aparc, aseg, etc.) can sit alongside it, differentiated by filename.
 
-Usage (old) (csh shell on HPC):
-    python pydeface_detect.py --data_root /path/to/TheOneData --out_dir /path/to/results --n_jobs 64
 
 Requirements:
     pip install pydeface nibabel numpy pandas joblib tqdm
@@ -25,7 +25,7 @@ FSL must be on PATH:
     setenv FSLDIR /usr/local/fsl
     setenv PATH /usr/local/fsl/bin:$PATH
 
-
+Usage:
 to run updated script on a single dataset (e.g. ADNI):
 python /analyse/Project0406/TheOneSeg/data/src/detect_and_deface.py \
     --data_root /analyse/Project0406/TheOneSeg/data/TheOneData \
@@ -60,12 +60,11 @@ warnings.filterwarnings("ignore")
 
 CONFIG = {
     "changed_voxel_threshold": 5,    # minimum per-voxel intensity change to count as changed
-    "changed_ratio_threshold": 0.01,  # fraction of whole-volume voxels changed; below = already defaced
+    "changed_ratio_threshold": 0.01,  # fraction of whole-volume voxels changed; below = 'already defaced'
     "roi_ratio_threshold":     0.02, # same signal but restricted to face ROI; tuned
 
     # Face ROI definition (LIA orientation, 256^3 at 1mm isotropic)
     # Derived from freeview voxel coordinates on a known-intact ADNI volume (means that its tuned for ADNI)
-    # Could add: if dataset = x, then use these coords for each dataset
     #   nose tip:  [127, 159, 231]
     #   chin:      [127, 218, 227]
     #   mouth:     [127, 175, 188]
@@ -133,10 +132,10 @@ def load_completed(out_dir):
     try:
         df = pd.read_csv(csv_path)
         completed = set(df.loc[df["error"].isna(), "filepath"].tolist())
-        logging.info("Resuming — {} volumes already processed".format(len(completed)))
+        logging.info(f"Resuming — {len(completed)} volumes already processed")
         return completed
     except Exception as exc:
-        logging.warning("Could not read existing CSV, starting fresh: {}".format(exc))
+        logging.warning(f"Could not read existing CSV, starting fresh: {exc}")
         return set()
 
 
@@ -160,8 +159,8 @@ def _gt_mask_path(filepath, data_root):
     mask filename so that future masks (aparc, aseg, etc.) can sit alongside
     it differentiated by filename rather than by path.
 
-    data_root may be a symlink directory (multi-node HPC setup); we resolve
-    the real path so the mask lands next to the real data.
+    data_root may be a symlink directory (multi-node HPC setup, not currently in use); 
+    we resolve the real path so the mask lands next to the real data.
     """
     filepath  = Path(filepath)
     data_root = Path(data_root)
@@ -273,14 +272,13 @@ def process_volume(filepath, cfg, data_root):
 
             shutil.copy2(filepath, str(tmp_input))
 
-            out_path  = tmp_dir / "{}_defaced.nii.gz".format(stem)
-            mask_path = tmp_dir / "{}_pydeface_mask.nii.gz".format(stem) # pydeface's output name
+            out_path  = tmp_dir / f"{stem}_defaced.nii.gz"
+            mask_path = tmp_dir / f"{stem}_pydeface_mask.nii.gz" # pydeface's output name
 
             # Run pydeface (as a subprocess)
             result = subprocess.run(
                 ["pydeface", str(tmp_input), "--outfile", str(out_path), "--force", "--nocleanup"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
             )
 
             if result.returncode != 0:
@@ -288,7 +286,7 @@ def process_volume(filepath, cfg, data_root):
 
             # TEMP DIAGNOSTIC — remove after confirming
             import os
-            logging.info("Temp dir contents for {}: {}".format(filepath, os.listdir(str(tmp_dir))))
+            logging.info(f"Temp dir contents for {filepath}: {os.listdir(str(tmp_dir))}")
             
             # Load defaced volume
             data_post = np.asarray(nib.load(str(out_path)).dataobj, dtype=np.float32)
@@ -306,9 +304,12 @@ def process_volume(filepath, cfg, data_root):
             # Slice the face ROI out of abs_diff (NOT out of data_pre).
             # Coords are fractional so they scale correctly across resolutions.
             roi_cfg = cfg["face_roi"]
-            x0 = int(roi_cfg["x"][0] * shape[0]);  x1 = int(roi_cfg["x"][1] * shape[0])
-            y0 = int(roi_cfg["y"][0] * shape[1]);  y1 = int(roi_cfg["y"][1] * shape[1])
-            z0 = int(roi_cfg["z"][0] * shape[2]);  z1 = int(roi_cfg["z"][1] * shape[2])
+            x0 = int(roi_cfg["x"][0] * shape[0])
+            x1 = int(roi_cfg["x"][1] * shape[0])
+            y0 = int(roi_cfg["y"][0] * shape[1])
+            y1 = int(roi_cfg["y"][1] * shape[1])
+            z0 = int(roi_cfg["z"][0] * shape[2])
+            z1 = int(roi_cfg["z"][1] * shape[2])
 
             roi_diff = abs_diff[x0:x1, y0:y1, z0:z1]
 
@@ -337,7 +338,7 @@ def process_volume(filepath, cfg, data_root):
                     shutil.copy2(str(mask_path), str(dest))
                     base["mask_saved_path"] = str(dest)
                 else:
-                    logging.warning("Could not derive GT mask path for {}".format(filepath))
+                    logging.warning(f"Could not derive GT mask path for {filepath}")
 
         # temp directory and all pydeface outputs deleted here automatically
 
@@ -441,7 +442,7 @@ def save_results(df, out_dir):
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
 
     _write_html_report(df, summary, out_dir / "report.html")
-    logging.info("Results saved to {}".format(out_dir))
+    logging.info(f"Results saved to {out_dir}")
     return summary
 
 
@@ -458,6 +459,31 @@ def _write_html_report(df, summary, path):
             else "#d4edda"
         )
         mask_path = r.get("mask_saved_path") or ""
+        roi_ratio_str = (
+            "{:.4f}".format(r["changed_ratio_face_roi"])
+            if pd.notna(r.get("changed_ratio_face_roi"))
+            else "-"
+        )
+        ratio_str = (
+            "{:.4f}".format(r["changed_voxel_ratio"])
+            if pd.notna(r.get("changed_voxel_ratio"))
+            else "-"
+        )
+        roi_mdiff_str = (
+            "{:.2f}".format(r["mean_diff_face_roi"])
+            if pd.notna(r.get("mean_diff_face_roi"))
+            else "-"
+        )
+        mdiff_str = (
+            "{:.2f}".format(r["mean_diff"])
+            if pd.notna(r.get("mean_diff"))
+            else "-"
+        )
+        maxd_str = (
+            "{:.1f}".format(r["max_diff"])
+            if pd.notna(r.get("max_diff"))
+            else "-"
+        )
         rows += """<tr style="background:{c}">
           <td>{dataset}</td><td>{modality}</td>
           <td style="font-size:0.75em;word-break:break-all">{fp}</td>
@@ -470,17 +496,24 @@ def _write_html_report(df, summary, path):
             c=colour,
             dataset=r.get("dataset", ""), modality=r.get("modality", ""),
             fp=r["filepath"],
-            pred_roi =pred_roi,
-            pred     =r.get("prediction", "-"),
-            roi_ratio="{:.4f}".format(r["changed_ratio_face_roi"]) if pd.notna(r.get("changed_ratio_face_roi")) else "-",
-            ratio    ="{:.4f}".format(r["changed_voxel_ratio"])    if pd.notna(r.get("changed_voxel_ratio"))    else "-",
-            roi_mdiff="{:.2f}".format(r["mean_diff_face_roi"])     if pd.notna(r.get("mean_diff_face_roi"))     else "-",
-            mdiff    ="{:.2f}".format(r["mean_diff"])              if pd.notna(r.get("mean_diff"))              else "-",
-            maxd     ="{:.1f}".format(r["max_diff"])               if pd.notna(r.get("max_diff"))               else "-",
+            pred_roi=pred_roi,
+            pred=r.get("prediction", "-"),
+            roi_ratio=roi_ratio_str,
+            ratio=ratio_str,
+            roi_mdiff=roi_mdiff_str,
+            mdiff=mdiff_str,
+            maxd=maxd_str,
             mask=mask_path,
             err=r.get("error") or "",
         )
 
+    filter_input = (
+        '<input type="text" id="fi" '
+        'onkeyup="var q=this.value.toLowerCase();'
+        'document.querySelectorAll(\'#t tbody tr\').forEach(function(r)'
+        '{{r.style.display=r.innerText.toLowerCase().indexOf(q)>-1?\'\':\'none\'}})" '
+        'placeholder="Filter...">'
+    )
     html = """<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Pydeface Detection Report</title>
 <style>
@@ -501,7 +534,7 @@ def _write_html_report(df, summary, path):
   <div class="card" style="background:#cce5ff">Masks saved: {masks_saved}</div>
   <div class="card" style="background:#eee">Total: {total}</div>
 </div>
-<input type="text" id="fi" onkeyup="var q=this.value.toLowerCase();document.querySelectorAll('#t tbody tr').forEach(function(r){{r.style.display=r.innerText.toLowerCase().indexOf(q)>-1?'':'none'}})" placeholder="Filter...">
+{filter_input}
 <table id="t"><thead><tr>
   <th>Dataset</th><th>Modality</th><th>Filepath</th>
   <th>ROI Prediction ★</th><th>Whole-Vol Prediction</th>
@@ -509,7 +542,9 @@ def _write_html_report(df, summary, path):
   <th>ROI Mean Diff</th><th>Mean Diff</th>
   <th>Max Diff</th><th>Mask Saved Path</th><th>Error</th>
 </tr></thead><tbody>{rows}</tbody></table>
-</body></html>""".format(rows=rows, **summary)
+</body></html>""".format(
+        rows=rows, filter_input=filter_input, **summary
+    )
 
     path.write_text(html)
 
@@ -530,16 +565,16 @@ def main(data_root, out_dir, n_jobs, limit=None, sample=None, dataset=None):
 
     if dataset is not None:
         records = [r for r in records if r["dataset"] == dataset]
-        logging.info("Filtered to dataset '{}': {} volumes".format(dataset, len(records)))
+        logging.info(f"Filtered to dataset '{dataset}': {len(records)} volumes")
 
     if limit:
         records = records[:limit]
 
-    logging.info("Found {} volumes".format(len(records)))
+    logging.info(f"Found {len(records)} volumes")
 
     completed = load_completed(out_dir)  # read results and skip volumes already checked
     records   = [r for r in records if r["filepath"] not in completed]
-    logging.info("{} volumes to process".format(len(records)))
+    logging.info(f"{len(records)} volumes to process")
 
     if not records:
         logging.info("Nothing to do — all volumes already processed")
@@ -550,14 +585,14 @@ def main(data_root, out_dir, n_jobs, limit=None, sample=None, dataset=None):
         for r in tqdm(records, desc="Processing", unit="vol")
     )
 
-    for rec, res in zip(records, results):
+    for rec, res in zip(records, results):  # noqa: B905
         res["dataset"]  = rec["dataset"]
         res["modality"] = rec["modality"]
 
     new_df = pd.DataFrame(results)
 
     csv_path = out_dir / "results.csv"
-    if csv_path.exists() and completed:
+    if csv_path.exists() and completed:  # noqa: SIM108
         df = pd.concat([pd.read_csv(csv_path), new_df], ignore_index=True)
     else:
         df = new_df
@@ -567,8 +602,8 @@ def main(data_root, out_dir, n_jobs, limit=None, sample=None, dataset=None):
 
     print("\n=== SUMMARY ===")
     for k, v in summary.items():
-        print("  {:<16}: {}".format(k, v))
-    print("\nResults saved to: {}".format(out_dir))
+        print(f"  {k:<16}: {v}")
+    print(f"\nResults saved to: {out_dir}")
 
 
 # ---------------------------------------------------------------------------
