@@ -100,7 +100,7 @@ gt_estimation_function(){
                 > $LOGS_DIR$I_SUBJ_FILENAME"_FS_out_log.txt" 2>&1
 
             # Convert orig.mgz to native space
-            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/orig.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"orig_NS.mgz" --no-save-reg --trilin > "/tmp/out.txt"
+            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/orig.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"orig_NS.mgz" --no-save-reg --trilin > $I_OUT_TMP_FOLDER"conv_orig.txt"
 
             # Convert aseg and aparc+aseg to native space
             mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/aseg.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_aseg_NS.mgz" --no-save-reg --nearest > $I_OUT_TMP_FOLDER"conv_aseg.txt"
