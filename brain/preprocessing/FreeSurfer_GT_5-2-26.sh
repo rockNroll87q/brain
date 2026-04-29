@@ -70,10 +70,10 @@ gt_estimation_function(){
                 mkdir "$I_SUBJ_OUT_DIR"
             fi
 
-            Run FS command to obtain everything
+            # Run FS command to obtain everything
             recon-all -all -expert "/analyse/Project0235/segmentator/src/utils/FS_options.opts" -i $1 -subjid $I_SUBJ_FILENAME -openmp $N_MULTI_OPENMP > $LOGS_DIR$I_SUBJ_FILENAME"_FS_out_log.txt"
 
-            Convert orig.mgz to native space and save it
+            # Convert orig.mgz to native space and save it
             mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/orig.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"orig_NS.mgz" --no-save-reg --trilin > "/tmp/out.txt"
 
             # Keep these files: 'aseg.mgz' and 'aparc+aseg.mgz' (converted in native space)
