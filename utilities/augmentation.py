@@ -64,6 +64,49 @@ def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: in
     else:
         return np.squeeze(randAff(np.expand_dims(X_data, axis=0)), axis=0)
 
+def zoom_volume(X_data: np.ndarray, scale: float, order: int = 1, fill_value: int = 0) -> np.ndarray:
+    """
+    Performs a 3D zoom on the input volume, cropping symmetrically on axes
+    larger than the original size and padding on smaller axes.
+    """
+    try:
+        import torchio as tio
+    except ImportError as e:
+        logger.warning("torchio module is not currently installed. zoom_volume will use scipy.ndimage.zoom")
+        badImport = True
+    else:
+        randAff = tio.RandomAffine((scale, scale), degrees=(0,0), 
+                                   translation=(0,0), isotropic=True, 
+                                   center='image', default_pad_value=fill_value, image_interpolation='linear')
+        badImport = False
+    
+    if badImport:
+        # Apply the zoom
+        x_zoomed = zoom(X_data, scale, order=order, mode='constant', cval=fill_value)
+
+        # Calculate the cropping indices to keep the zoomed volume centered
+        crop_slices = []
+        for orig_size, zoomed_size in zip(X_data.shape, x_zoomed.shape):
+            if zoomed_size > orig_size:
+                # Calculate start and end indices to crop symmetrically
+                extra_size = zoomed_size - orig_size
+                start_idx = extra_size // 2
+                end_idx = start_idx + orig_size
+                crop_slices.append(slice(start_idx, end_idx))
+            else:
+                # If the zoomed size is smaller, keep the whole axis
+                crop_slices.append(slice(0, zoomed_size))
+        
+        # Crop the zoomed volume symmetrically
+        x_zoomed = x_zoomed[tuple(crop_slices)]
+
+        # Axes that are smaller need padding with zeros to match the original shape
+        x_zoomed, _ = pad_volume_to_shape(x_zoomed, target_shape=X_data.shape)
+
+        return x_zoomed
+    else:
+        return np.squeeze(randAff(np.expand_dims(X_data, axis=0)), axis=0)
+
 def addWeighted(src1, alpha, src2, beta, gamma):
     """ 
     Calculates the weighted sum of two arrays (cv2 replaced).
@@ -343,6 +386,7 @@ def slice_spacing(X_data: np.ndarray, generator: np.random.Generator, min_slice_
     assert X_data_out.shape == X_data.shape
 
     return X_data_out
+
 
 
 class SliceSpacingNoiseAugment(ImageOnlyTransform):
@@ -776,13 +820,12 @@ class RandomGhostingAugment(ImageOnlyTransform):
 
         return np.squeeze(self.randGhost(np.expand_dims(img, axis=0)), axis=0)
 
-def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
-    """Get the augmentation you want using the four-letter string code."""
-    augmentations = {
+def get_all_augmentations(inho_vol, augment: AugmentConfig, seed=None):
+    return {
         "inho": InhomogeneityNoiseAugment(inho_vol, p=augment.prob_inho,seed=seed),
         "rota": RotationAugment(p=augment.prob_rota, max_angle=30, rot_spline_order=1, seed=seed),
         "tran": FastTranslationAugment(padding_mode='wrap', p=augment.prob_tran, seed=seed),
-        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur, seed=seed),
+        "blur": albu.Blur(blur_limit=(3, 3), p=augment.prob_blur),
         "salt": SaltAndPepperNoiseAugment(p=augment.prob_salt, seed=seed),
         "gaus": GaussianNoiseAugment(p=augment.prob_gaus, seed=seed),
         "down": albu.OneOf([                                
@@ -808,7 +851,10 @@ def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
                                         interpolation = 4,
                                         p = augment.prob_resi),
     }
-    return augmentations.get(name)
+
+def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
+    """Get the augmentation you want using the four-letter string code."""
+    return get_all_augmentations(inho_vol, augment, seed).get(name)
 
 class Augmenter: # New augmentation class. Recommended to use this now instead of the above direct functions
     """Augmenter class. Wraps around all the augmentation functions."""
@@ -820,24 +866,15 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         # This part is just to ensure that the probabilities are normalized to levels that we expect. 
         # Internally, the normalization is done by albumentations OneOf
         # It doesn't affect the augmentations themselves, but it does ensure that we get a reasonable distribution of types.
-        def calculate_weights(desired_probabilities):
-            total_probability = sum(desired_probabilities.values())
-            if total_probability == 0:
-                normalized_weights = {k: 0.0 for k, v in desired_probabilities.items()}
-            else:
-                normalized_weights = {k: v / total_probability for k, v in desired_probabilities.items()}
-            return normalized_weights
 
-        def scale(weights, prob):
-            return {k: v * prob for k, v in weights.items()}
         
         augdict = augmentConfig.dict()
         # Normalize the prob weights in groups for geo/non-geo augmentations
-        non_geo_weights = calculate_weights({k: v for k, v in augdict.items() \
+        non_geo_weights = Augmenter.calculate_weights({k: v for k, v in augdict.items() \
                                     if 'prob' in k and k not in ['prob_overall', \
                                                                  'prob_geom', 'prob_colo', \
                                                                 'prob_tran', 'prob_rota']})
-        geo_weights = calculate_weights({k: v for k, v in augdict.items() \
+        geo_weights = Augmenter.calculate_weights({k: v for k, v in augdict.items() \
                             if k in ['prob_tran', 'prob_rota']})
 
         # Update config weights with normalized ones, since albumentations change their API requirements
@@ -852,9 +889,9 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
         # == Printing logic below for debugging ==
 
         # Scale the non-geometric probabilities by the color augmentation probability and overall probability
-        non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo*augmentConfig.prob_overall)
+        non_geo_weights = Augmenter.scale(non_geo_weights, augmentConfig.prob_colo*augmentConfig.prob_overall)
         # Scale the geometric probabilities by the overall probability and geometric probability
-        geo_weights = scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
+        geo_weights = Augmenter.scale(geo_weights, augmentConfig.prob_overall*augmentConfig.prob_geom)
 
         logger.debug('Augmentation Normalized Probabilities:')
         logger.debug(f'\tGeom Probabilities: {geo_weights}')
@@ -866,6 +903,19 @@ class Augmenter: # New augmentation class. Recommended to use this now instead o
             return {'image': image}
         else:
             return {'image': image, 'mask': mask}
+
+    @staticmethod
+    def calculate_weights(desired_probabilities):
+        total_probability = sum(desired_probabilities.values())
+        if total_probability == 0:
+            normalized_weights = {k: 0.0 for k, v in desired_probabilities.items()}
+        else:
+            normalized_weights = {k: v / total_probability for k, v in desired_probabilities.items()}
+        return normalized_weights
+
+    @staticmethod
+    def scale(weights, prob):
+        return {k: v * prob for k, v in weights.items()}
 
     @classmethod
     def get_augmenter(cls, inho_vol, augment: AugmentConfig, **kwargs):
