@@ -107,10 +107,10 @@ gt_estimation_function(){
             mris_volmask --save_distance --cap_distance $LEVEL_SETS_CAP_VALUE $I_SUBJ_FILENAME  > "/tmp/out.txt"
 
             # Convert level sets to native space
-            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/lh.dpial.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_lh.dpial.ribbon_NS.mgz" --no-save-reg --trilin > $I_OUT_TMP_FOLDER"conv_lh_dpial.txt"  > "/tmp/out.txt"
-            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/lh.dwhite.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_lh.dwhite.ribbon_NS.mgz" --no-save-reg --trilin > $I_OUT_TMP_FOLDER"conv_lh_dwhite.txt"  > "/tmp/out.txt"
-            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/rh.dpial.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_rh.dpial.ribbon_NS.mgz" --no-save-reg --trilin > $I_OUT_TMP_FOLDER"conv_rh_dpial.txt"  > "/tmp/out.txt"
-            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/rh.dwhite.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_rh.dwhite.ribbon_NS.mgz" --no-save-reg --trilin > $I_OUT_TMP_FOLDER"conv_rh_dwhite.txt"  > "/tmp/out.txt"
+            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/lh.dpial.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_lh.dpial.ribbon_NS.mgz" --no-save-reg --trilin | tee $I_OUT_TMP_FOLDER"conv_lh_dpial.txt" > "/tmp/out.txt"
+            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/lh.dwhite.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_lh.dwhite.ribbon_NS.mgz" --no-save-reg --trilin | tee $I_OUT_TMP_FOLDER"conv_lh_dwhite.txt" > "/tmp/out.txt"
+            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/rh.dpial.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_rh.dpial.ribbon_NS.mgz" --no-save-reg --trilin | tee $I_OUT_TMP_FOLDER"conv_rh_dpial.txt" > "/tmp/out.txt"
+            mri_vol2vol --mov $I_OUT_TMP_FOLDER"mri/rh.dwhite.ribbon.mgz" --targ $I_OUT_TMP_FOLDER"mri/rawavg.mgz" --regheader --o $I_SUBJ_OUT_DIR"FS_rh.dwhite.ribbon_NS.mgz" --no-save-reg --trilin | tee $I_OUT_TMP_FOLDER"conv_rh_dwhite.txt" > "/tmp/out.txt"
 
             # Merge the level sets of the two hemispheres
             $PYTHON_RUN $LEVEL_SET_SCRIPT $I_SUBJ_OUT_DIR"FS_lh.dpial.ribbon_NS.mgz" $I_SUBJ_OUT_DIR"FS_rh.dpial.ribbon_NS.mgz" --output $I_SUBJ_OUT_DIR"FS_dpial.ribbon_NS.mgz"  > "/tmp/out.txt"
@@ -130,11 +130,14 @@ gt_estimation_function(){
             $PYTHON_RUN $DISTANCE_SET_SCRIPT --lh_surf $I_SUBJ_OUT_DIR"lh.pial.native" --rh_surf $I_SUBJ_OUT_DIR"rh.pial.native" --lh_opposite_level_set $I_SUBJ_OUT_DIR"FS_lh.dwhite.ribbon_NS.mgz" --rh_opposite_level_set $I_SUBJ_OUT_DIR"FS_rh.dwhite.ribbon_NS.mgz" --orig $I_SUBJ_OUT_DIR"orig_NS.mgz" --output $I_SUBJ_OUT_DIR"pial_distance_set_NS.nii.gz" --dilation_iters 1
             $PYTHON_RUN $DISTANCE_SET_SCRIPT --lh_surf $I_SUBJ_OUT_DIR"lh.white.native" --rh_surf $I_SUBJ_OUT_DIR"rh.white.native" --lh_opposite_level_set $I_SUBJ_OUT_DIR"FS_lh.dpial.ribbon_NS.mgz" --rh_opposite_level_set $I_SUBJ_OUT_DIR"FS_rh.dpial.ribbon_NS.mgz" --orig $I_SUBJ_OUT_DIR"orig_NS.mgz" --output $I_SUBJ_OUT_DIR"wm_distance_set_NS.nii.gz" --dilation_iters 1
 
+            FS_7CLASSES_OUT=$I_SUBJ_OUT_DIR"FS_7classes.nii.gz"
+            FS_AA_7CLASSES_OUT=$I_SUBJ_OUT_DIR"FS_a+a_7classes.nii.gz"
+
             # Convert 'aseg_NS.mgz' to 'FS_7classes.nii.gz'
-            $PYTHON_RUN -W ignore "/analyse/Project0235/segmentator/src/utils/fs_to_mrbrains.py" --path_in=$I_SUBJ_OUT_DIR"FS_aseg_NS.mgz" --path_out=$2 --conversion="aseg_to_mrbr" > $I_OUT_TMP_FOLDER"FS_7classes.txt"
+            $PYTHON_RUN -W ignore "/analyse/Project0235/segmentator/src/utils/fs_to_mrbrains.py" --path_in=$I_SUBJ_OUT_DIR"FS_aseg_NS.mgz" --path_out=$FS_7CLASSES_OUT --conversion="aseg_to_mrbr" > $I_OUT_TMP_FOLDER"FS_7classes.txt"
             
             # Convert 'FS_aparc+aseg_NS.mgz' to 'FS_a+a_7classes.nii.gz'
-            $PYTHON_RUN -W ignore "/analyse/Project0235/segmentator/src/utils/fs_to_mrbrains.py" --path_in=$I_SUBJ_OUT_DIR"FS_aparc+aseg_NS.mgz" --path_out=$4 --conversion="aa_to_mrbr" > $I_OUT_TMP_FOLDER"FS_a+a_7classes.txt"
+            $PYTHON_RUN -W ignore "/analyse/Project0235/segmentator/src/utils/fs_to_mrbrains.py" --path_in=$I_SUBJ_OUT_DIR"FS_aparc+aseg_NS.mgz" --path_out=$FS_AA_7CLASSES_OUT --conversion="aa_to_mrbr" > $I_OUT_TMP_FOLDER"FS_a+a_7classes.txt"
 
             # Move useful output
             mv $I_OUT_TMP_FOLDER"surf/"*".thickness" $I_SUBJ_OUT_DIR              # Thickness overlay
