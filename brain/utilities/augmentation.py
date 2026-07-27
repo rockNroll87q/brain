@@ -589,8 +589,8 @@ def fast_translate_volume(image, shift_x0: int, shift_x1: int, shift_x2: int, pa
     """
 
     # Initialize pad widths and slices to keep for each dimension
-    pad_widths = [(0, 0)] * 3
-    slices_to_keep = [slice(None)] * 3
+    pad_widths = [(0, 0)] * image.ndim
+    slices_to_keep = [slice(None)] * image.ndim    
 
     # Calculate pad widths and slices to keep based on shift directions
     for i, shift in enumerate([shift_x0, shift_x1, shift_x2]):
