@@ -838,35 +838,36 @@ class Augmenter:  # New augmentation class. Recommended to use this now instead 
         # Internally, the normalization is done by albumentations OneOf
         # It doesn't affect the augmentations themselves, but it does ensure 
         # that we get a reasonable distribution of types.
-        if self.normalize_probabilities:
-            def calculate_weights(desired_probabilities):
-                total_probability = sum(desired_probabilities.values())
-                if total_probability == 0:
-                    normalized_weights = {k: 0.0 for k, v in desired_probabilities.items()}
-                else:
-                    normalized_weights = {k: v / total_probability for k, v in desired_probabilities.items()}
-                return normalized_weights
+        def calculate_weights(desired_probabilities):
+            total_probability = sum(desired_probabilities.values())
+            if total_probability == 0:
+                normalized_weights = {k: 0.0 for k, v in desired_probabilities.items()}
+            else:
+                normalized_weights = {k: v / total_probability for k, v in desired_probabilities.items()}
+            return normalized_weights
 
-            def scale(weights, prob):
-                return {k: v * prob for k, v in weights.items()}
+        def scale(weights, prob):
+            return {k: v * prob for k, v in weights.items()}
 
-            augdict = augmentConfig.dict()
-            # Normalize the prob weights in groups for geo/non-geo augmentations
-            geo_names = ["prob_tran", "prob_rota", "prob_grid"]
-            non_geo_names = ["prob_overall", "prob_geom", "prob_colo"] + geo_names
-            non_geo_weights = calculate_weights(
-                {
-                    k: v
-                    for k, v in augdict.items()
-                    if "prob" in k and k not in non_geo_names
-                }
-            ) 
-            geo_weights = calculate_weights({
+        augdict = augmentConfig.dict()
+        
+        # Normalize the prob weights in groups for geo/non-geo augmentations
+        geo_names = ["prob_tran", "prob_rota", "prob_grid"]
+        non_geo_names = ["prob_overall", "prob_geom", "prob_colo"] + geo_names
+        non_geo_weights = calculate_weights(
+            {
                 k: v
                 for k, v in augdict.items()
-                if k in geo_names
-            })
+                if "prob" in k and k not in non_geo_names
+            }
+        ) 
+        geo_weights = calculate_weights({
+            k: v
+            for k, v in augdict.items()
+            if k in geo_names
+        })
 
+        if self.normalize_probabilities:
             # Update config weights with normalized ones, since albumentations change their API requirements
             for k, v in non_geo_weights.items():
                 # augmentConfig[k] = v
