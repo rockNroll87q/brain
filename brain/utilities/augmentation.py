@@ -828,10 +828,11 @@ def get_augmentation_by_name(inho_vol, augment: AugmentConfig, name, seed=None):
 class Augmenter:  # New augmentation class. Recommended to use this now instead of the above direct functions
     """Augmenter class. Wraps around all the augmentation functions."""
 
-    def __init__(self, inho_vol, augmentConfig: AugmentConfig):
+    def __init__(self, inho_vol, augmentConfig: AugmentConfig, normalize_probabilities: bool = True):
         """Init."""
         self.inho_vol = inho_vol
         self.augmentConfig = augmentConfig
+        self.normalize_probabilities = normalize_probabilities
 
         # This part is just to ensure that the probabilities are normalized to levels that we expect.
         # Internally, the normalization is done by albumentations OneOf
@@ -849,35 +850,47 @@ class Augmenter:  # New augmentation class. Recommended to use this now instead 
             return {k: v * prob for k, v in weights.items()}
 
         augdict = augmentConfig.dict()
+        
         # Normalize the prob weights in groups for geo/non-geo augmentations
+        geo_names = ["prob_tran", "prob_rota", "prob_grid"]
+        non_geo_names = ["prob_overall", "prob_geom", "prob_colo"] + geo_names
         non_geo_weights = calculate_weights(
             {
                 k: v
                 for k, v in augdict.items()
-                if "prob" in k and k not in ["prob_overall", "prob_geom", "prob_colo", "prob_tran", "prob_rota"]
+                if "prob" in k and k not in non_geo_names
             }
-        )
-        geo_weights = calculate_weights({k: v for k, v in augdict.items() if k in ["prob_tran", "prob_rota"]})
+        ) 
+        geo_weights = calculate_weights({
+            k: v
+            for k, v in augdict.items()
+            if k in geo_names
+        })
 
-        # Update config weights with normalized ones, since albumentations change their API requirements
-        for k, v in non_geo_weights.items():
-            # augmentConfig[k] = v
-            setattr(augmentConfig, k, v)
+        if self.normalize_probabilities:
+            # Update config weights with normalized ones, since albumentations change their API requirements
+            for k, v in non_geo_weights.items():
+                # augmentConfig[k] = v
+                setattr(augmentConfig, k, v)
 
-        for k, v in geo_weights.items():
-            # augmentConfig[k] = v
-            setattr(augmentConfig, k, v)
+            for k, v in geo_weights.items():
+                # augmentConfig[k] = v
+                setattr(augmentConfig, k, v)
 
-        # == Printing logic below for debugging ==
+            # == Printing logic below for debugging ==
 
-        # Scale the non-geometric probabilities by the color augmentation probability and overall probability
-        non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo * augmentConfig.prob_overall)
-        # Scale the geometric probabilities by the overall probability and geometric probability
-        geo_weights = scale(geo_weights, augmentConfig.prob_overall * augmentConfig.prob_geom)
+            # Scale the non-geometric probabilities by the color augmentation probability and overall probability
+            non_geo_weights = scale(non_geo_weights, augmentConfig.prob_colo * augmentConfig.prob_overall)
+            # Scale the geometric probabilities by the overall probability and geometric probability
+            geo_weights = scale(geo_weights, augmentConfig.prob_overall * augmentConfig.prob_geom)
 
-        logger.debug("Augmentation Normalized Probabilities:")
-        logger.debug(f"\tGeom Probabilities: {geo_weights}")
-        logger.debug(f"\tNon-geom Probabilities: {non_geo_weights}")
+            logger.debug("Augmentation Normalized Probabilities:")
+            logger.debug(f"\tGeom Probabilities: {geo_weights}")
+            logger.debug(f"\tNon-geom Probabilities: {non_geo_weights}")
+        else:
+            logger.debug("Augmentation Probabilities (not normalized):")
+            logger.debug(f"\tGeom Probabilities: {geo_weights}")
+            logger.debug(f"\tNon-geom Probabilities: {non_geo_weights}")
 
     def identity(self, image, mask=None):
         """Get image or image+mask without any transform."""
