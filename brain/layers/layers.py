@@ -119,6 +119,7 @@ class BottleNeck(keras.layers.Layer):
 
         self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
+        # FilM layer
         if self.conditioning_layer is not None:
             self.film2 = FiLM3DLayer(
                 condition_dim = self.conditioning_layer.condition_dim
@@ -237,6 +238,7 @@ class UpBottleNeck(keras.layers.Layer):
         self.kernel_regularizer_value = kernel_regularizer
         self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
         self.conditioning_layer = conditioning_layer
+        self.film2 = None
 
     def build(self, input_shape):
         """Build layers."""
@@ -285,6 +287,7 @@ class UpBottleNeck(keras.layers.Layer):
 
         self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
+        # FilM layer
         if self.conditioning_layer is not None:
             self.film2 = FiLM3DLayer(
                 condition_dim = self.conditioning_layer.condition_dim
@@ -435,9 +438,11 @@ class Plain(keras.layers.Layer):
         bn: bool = True,
         kernel_initializer: str = "he_normal",
         kernel_regularizer: float = 1.0e-4,
+        mult_factor: int = 1,
         n_conv_row: int = 1,
         downsampling: str = "conv",
         channel_out_mult_factor: int = 2,
+        conditioning_layer: keras.layers.Layer = None,
         **kwargs,
     ):
         """
@@ -466,9 +471,11 @@ class Plain(keras.layers.Layer):
         self.kernel_regularizer_value = kernel_regularizer
         self.kernel_initializer = kernel_initializer
         self.kernel_regularizer = keras.regularizers.l2(kernel_regularizer)
+        self.conditioning_layer = conditioning_layer
         self.n_conv_row = n_conv_row
         self.downsampling = downsampling
         self.channel_out_mult_factor = channel_out_mult_factor
+        self.film = None
 
     def build(self, input_shape):
         """Build layers."""
@@ -508,11 +515,19 @@ class Plain(keras.layers.Layer):
         # Dropout
         self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
-    def call(self, inputs, training=None):
+        # FilM layer
+        if self.conditioning_layer is not None:
+            self.film = FiLM3DLayer(
+                condition_dim = self.conditioning_layer.condition_dim
+            )        
+
+    def call(self, inputs, condition_vector=None, training=None):
         """Forward pass."""
         x = self.convs(inputs, training=training)
         if training:
             x = self.dropout(x)
+        if self.conditioning_layer is not None and condition_vector is not None:
+            x = self.film([x, condition_vector])
         x = self.downsample(x)
         x = getattr(keras.ops, self.activation)(x)
         return x
@@ -542,6 +557,7 @@ class Plain(keras.layers.Layer):
             "kernel_regularizer": self.kernel_regularizer_value,
             "kernel_initializer": self.kernel_initializer,
             "channel_out_mult_factor": self.channel_out_mult_factor,
+            "conditioning_layer": self.conditioning_layer.name if self.conditioning_layer else None
         }
 
 
@@ -699,6 +715,7 @@ class UpPlain(keras.layers.Layer):
         n_conv_row=1,
         mult_factor: int = 1,
         channel_out_mult_factor: int = 4,
+        conditioning_layer: keras.layers.Layer = None,
         **kwargs,
     ):
         """
@@ -731,6 +748,8 @@ class UpPlain(keras.layers.Layer):
         self.n_conv_row = n_conv_row
         self.mult_factor = mult_factor
         self.channel_out_mult_factor = channel_out_mult_factor
+        self.conditioning_layer = conditioning_layer
+        self.film = None
 
     def build(self, input_shape):
         """Build layers."""
@@ -764,11 +783,19 @@ class UpPlain(keras.layers.Layer):
 
         self.dropout = keras.layers.Dropout(rate=self.dropout_rate)
 
-    def call(self, inputs, training=None, **kwargs):
+        # FilM layer
+        if self.conditioning_layer is not None:
+            self.film = FiLM3DLayer(
+                condition_dim = self.conditioning_layer.condition_dim
+            )
+
+    def call(self, inputs, condition_vector=None, training=None, **kwargs):
         """Forward pass."""
         x = self.convs(inputs, training=training)
         if training:
             x = self.dropout(x)
+        if self.conditioning_layer is not None and condition_vector is not None:
+            x = self.film([x, condition_vector])                         
         x = self.up_conv(x)
         x = getattr(keras.ops, self.activation)(x)
         return x
@@ -797,6 +824,7 @@ class UpPlain(keras.layers.Layer):
             "channel_out_mult_factor": self.channel_out_mult_factor,
             "kernel_initializer": self.kernel_initializer,
             "kernel_regularizer": self.kernel_regularizer_value,
+            "conditioning_layer": self.conditioning_layer.name if self.conditioning_layer else None
         }
 
 
